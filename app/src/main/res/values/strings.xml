@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Steam Mixer Calculator</string>
+    <color name="ic_launcher_background">#1565C0</color>
+</resources>

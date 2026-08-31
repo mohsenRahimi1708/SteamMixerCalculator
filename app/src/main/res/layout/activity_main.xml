@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#FAFAFA">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Steam Mixer Calculator"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#1A237E"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="IAPWS-IF97 Attemperator Calculation"
+            android:textSize="12sp"
+            android:textColor="#666666"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Steam Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Steam Inlet"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/editSteamFlow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Steam mass flow (300–1000 t/h)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="8dp"
+            android:padding="12dp"
+            android:background="@android:drawable/edit_text"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/editSteamPressure"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Steam pressure (20–170 bar)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="8dp"
+            android:padding="12dp"
+            android:background="@android:drawable/edit_text"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/editSteamTemp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Steam temperature (200–560 °C)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="16dp"
+            android:padding="12dp"
+            android:background="@android:drawable/edit_text"
+            android:textSize="16sp" />
+
+        <!-- Spray Water Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Spray Water"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/editSprayFlow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Spray water mass flow (t/h)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="8dp"
+            android:padding="12dp"
+            android:background="@android:drawable/edit_text"
+            android:textSize="16sp" />
+
+        <EditText
+            android:id="@+id/editSprayTemp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Spray water temperature (°C)"
+            android:inputType="numberDecimal"
+            android:layout_marginBottom="16dp"
+            android:padding="12dp"
+            android:background="@android:drawable/edit_text"
+            android:textSize="16sp" />
+
+        <!-- Calculate Button -->
+        <Button
+            android:id="@+id/btnCalculate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CALCULATE"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="#1A237E"
+            android:textColor="#FFFFFF"
+            android:padding="14dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Warning Card -->
+        <LinearLayout
+            android:id="@+id/cardWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#FFEBEE"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/textWarning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="#C62828" />
+        </LinearLayout>
+
+        <!-- Results Card -->
+        <LinearLayout
+            android:id="@+id/cardResults"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:background="#E8F5E9"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/textResultTemp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#1B5E20"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/textResultDelta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#2E7D32"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/textResultFlow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#2E7D32" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

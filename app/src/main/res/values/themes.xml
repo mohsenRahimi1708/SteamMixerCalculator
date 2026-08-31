@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.SteamMixerCalculator" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#1565C0</item>
+        <item name="android:colorPrimaryDark">#0D47A1</item>
+        <item name="android:colorAccent">#FF6F00</item>
+        <item name="android:statusBarColor">#0D47A1</item>
+    </style>
+</resources>

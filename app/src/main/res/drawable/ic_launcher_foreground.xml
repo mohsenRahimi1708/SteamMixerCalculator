@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple steam/water drop icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,20 C54,20 38,42 38,58 C38,66.84 45.16,74 54,74 C62.84,74 70,66.84 70,58 C70,42 54,20 54,20 Z M54,70 C47.37,70 42,64.63 42,58 C42,52.36 48.44,40.28 54,30.5 C59.56,40.28 66,52.36 66,58 C66,64.63 60.63,70 54,70 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,52 L24,60 L36,60 Z"
+        android:strokeWidth="0"
+        android:fillAlpha="0.7"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,52 L72,60 L84,60 Z"
+        android:strokeWidth="0"
+        android:fillAlpha="0.7"/>
+</vector>
