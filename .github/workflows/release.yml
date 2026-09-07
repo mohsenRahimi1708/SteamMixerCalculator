@@ -28,7 +28,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run unit tests and build debug APK
-        run: ./gradlew testDebugUnitTest assembleDebug --no-daemon --console=plain
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon --console=plain
 
       - name: Rename APK with version
         run: |
