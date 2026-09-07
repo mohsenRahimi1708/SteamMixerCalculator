@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ChangeHistory
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +19,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.steamcalc.ui.screens.EnergyBalanceScreen
+import com.steamcalc.ui.screens.HelpScreen
 import com.steamcalc.ui.screens.QuickCalculatorScreen
 import com.steamcalc.ui.screens.SprayImpactScreen
 import com.steamcalc.ui.screens.TransientSimulationScreen
@@ -54,7 +56,19 @@ fun SteamCalcNavHost() {
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                ),
+                actions = {
+                    // Hide the help action while already on the help screen
+                    if (currentDestination?.route != "help") {
+                        IconButton(onClick = { navController.navigate("help") }) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "Help / Operator Guide",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                }
             )
         },
         bottomBar = {
@@ -123,6 +137,10 @@ fun SteamCalcNavHost() {
                     data = data,
                     onBack = { navController.popBackStack() }
                 )
+            }
+
+            composable("help") {
+                HelpScreen(onBack = { navController.popBackStack() })
             }
         }
     }
