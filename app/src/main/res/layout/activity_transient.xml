@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#FAFAFA">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Transient Simulation"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#1A237E"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Burner ignition — platen thermal inertia"
+            android:textSize="11sp"
+            android:textColor="#666666"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Navigation Tabs -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <Button
+                android:id="@+id/btnTabSteadyState"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Quick Calc"
+                android:textSize="11sp"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnTabTransient"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Transient"
+                android:textSize="11sp"
+                android:enabled="false"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDDDDD"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Steam Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Steam Side"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#1565C0"
+            android:layout_marginBottom="4dp" />
+
+        <EditText android:id="@+id/editTSFlow" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Steam flow (t/h) [600]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTPressure" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Pressure (bar) [167]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTSteamTemp" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Steam inlet temp (°C) [540]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTTargetTemp" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Target outlet (°C) [520]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTSprayTemp" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Spray water temp (°C) [230]" android:inputType="numberDecimal" android:layout_marginBottom="8dp" android:padding="8dp" android:textSize="13sp" />
+
+        <!-- Platen Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Platen Metal"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#616161"
+            android:layout_marginBottom="4dp" />
+
+        <EditText android:id="@+id/editTMetalMass" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Metal mass (kg) [62600]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTMetalCp" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Metal Cp (J/(kg·K)) [500]" android:inputType="numberDecimal" android:layout_marginBottom="8dp" android:padding="8dp" android:textSize="13sp" />
+
+        <!-- Burner Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Burner"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FF6F00"
+            android:layout_marginBottom="4dp" />
+
+        <EditText android:id="@+id/editTBurnerHeat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Heat per burner (MW) [40]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTBurnerCount" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Number of burners [4]" android:inputType="number" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTEta" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="η (burner→platen, 0–1) [0.07]" android:inputType="numberDecimal" android:layout_marginBottom="8dp" android:padding="8dp" android:textSize="13sp" />
+
+        <!-- Simulation Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Simulation"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#006A60"
+            android:layout_marginBottom="4dp" />
+
+        <EditText android:id="@+id/editTTimeStep" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Time step (s) [10]" android:inputType="numberDecimal" android:layout_marginBottom="4dp" android:padding="8dp" android:textSize="13sp" />
+        <EditText android:id="@+id/editTDuration" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Duration (s) [600]" android:inputType="numberDecimal" android:layout_marginBottom="10dp" android:padding="8dp" android:textSize="13sp" />
+
+        <!-- Simulate Button -->
+        <Button
+            android:id="@+id/btnSimulate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="RUN SIMULATION"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:padding="12dp"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Warning -->
+        <LinearLayout
+            android:id="@+id/cardTWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:background="#FFEBEE"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone">
+            <TextView android:id="@+id/textTWarning" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="#C62828" />
+        </LinearLayout>
+
+        <!-- Results -->
+        <LinearLayout
+            android:id="@+id/cardTResults"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:background="#E8F5E9"
+            android:visibility="gone">
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Simulation Results" android:textSize="15sp" android:textStyle="bold" android:textColor="#1B5E20" />
+
+            <TextView android:id="@+id/textTFinalMetalTemp" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="#2E7D32" android:layout_marginTop="6dp" />
+            <TextView android:id="@+id/textTFinalSpray" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="#2E7D32" />
+            <TextView android:id="@+id/textTSteadySpray" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="#2E7D32" />
+
+            <!-- Temperature Chart -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Temperature vs Time" android:textSize="12sp" android:textStyle="bold"
+                android:textColor="#333333" android:layout_marginTop="10dp" />
+
+            <com.steamcalc.ui.ChartView
+                android:id="@+id/chartTemp"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginTop="4dp"
+                android:background="#FFFFFF" />
+
+            <!-- Spray Flow Chart -->
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Spray Flow vs Time" android:textSize="12sp" android:textStyle="bold"
+                android:textColor="#333333" android:layout_marginTop="10dp" />
+
+            <com.steamcalc.ui.ChartView
+                android:id="@+id/chartSpray"
+                android:layout_width="match_parent"
+                android:layout_height="160dp"
+                android:layout_marginTop="4dp"
+                android:background="#FFFFFF" />
+
+            <!-- Assumptions -->
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="#A5D6A7" android:layout_marginTop="10dp" android:layout_marginBottom="8dp" />
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Assumptions" android:textSize="12sp" android:textStyle="bold" android:textColor="#1B5E20" />
+            <TextView android:id="@+id/textTAssumptions" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="#333333" android:lineSpacingExtra="2dp" />
+
+            <!-- Energy Balance Button -->
+            <Button android:id="@+id/btnTEnergyBalance" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="View Full Energy Balance" android:textSize="12sp" android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
