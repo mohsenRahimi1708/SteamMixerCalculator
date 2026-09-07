@@ -14,21 +14,54 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Steam Mixer Calculator"
+            android:text="Steam Mixer Calculator v2"
             android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="#1A237E"
             android:gravity="center"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="4dp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="IAPWS-IF97 Attemperator Calculation"
-            android:textSize="12sp"
+            android:text="IAPWS-IF97 (Hummeling Library) · Steady-State Mixing"
+            android:textSize="11sp"
             android:textColor="#666666"
             android:gravity="center"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="12dp" />
+
+        <!-- Navigation Tabs -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/btnTabSteadyState"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Quick Calc"
+                android:textSize="11sp"
+                android:enabled="false"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btnTabTransient"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Transient"
+                android:textSize="11sp"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDDDDD"
+            android:layout_marginBottom="12dp" />
 
         <!-- Steam Section -->
         <TextView
@@ -37,8 +70,8 @@
             android:text="Steam Inlet"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="#333333"
-            android:layout_marginBottom="8dp" />
+            android:textColor="#1565C0"
+            android:layout_marginBottom="6dp" />
 
         <EditText
             android:id="@+id/editSteamFlow"
@@ -46,10 +79,9 @@
             android:layout_height="wrap_content"
             android:hint="Steam mass flow (300–1000 t/h)"
             android:inputType="numberDecimal"
-            android:layout_marginBottom="8dp"
-            android:padding="12dp"
-            android:background="@android:drawable/edit_text"
-            android:textSize="16sp" />
+            android:layout_marginBottom="6dp"
+            android:padding="10dp"
+            android:textSize="15sp" />
 
         <EditText
             android:id="@+id/editSteamPressure"
@@ -57,10 +89,9 @@
             android:layout_height="wrap_content"
             android:hint="Steam pressure (20–170 bar)"
             android:inputType="numberDecimal"
-            android:layout_marginBottom="8dp"
-            android:padding="12dp"
-            android:background="@android:drawable/edit_text"
-            android:textSize="16sp" />
+            android:layout_marginBottom="6dp"
+            android:padding="10dp"
+            android:textSize="15sp" />
 
         <EditText
             android:id="@+id/editSteamTemp"
@@ -68,10 +99,9 @@
             android:layout_height="wrap_content"
             android:hint="Steam temperature (200–560 °C)"
             android:inputType="numberDecimal"
-            android:layout_marginBottom="16dp"
-            android:padding="12dp"
-            android:background="@android:drawable/edit_text"
-            android:textSize="16sp" />
+            android:layout_marginBottom="12dp"
+            android:padding="10dp"
+            android:textSize="15sp" />
 
         <!-- Spray Water Section -->
         <TextView
@@ -80,19 +110,18 @@
             android:text="Spray Water"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="#333333"
-            android:layout_marginBottom="8dp" />
+            android:textColor="#0288D1"
+            android:layout_marginBottom="6dp" />
 
         <EditText
-            android:id="@+id/editSprayFlow"
+            android:id="@+id/editTargetTemp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Spray water mass flow (t/h)"
+            android:hint="Target outlet temperature (°C)"
             android:inputType="numberDecimal"
-            android:layout_marginBottom="8dp"
-            android:padding="12dp"
-            android:background="@android:drawable/edit_text"
-            android:textSize="16sp" />
+            android:layout_marginBottom="6dp"
+            android:padding="10dp"
+            android:textSize="15sp" />
 
         <EditText
             android:id="@+id/editSprayTemp"
@@ -100,10 +129,9 @@
             android:layout_height="wrap_content"
             android:hint="Spray water temperature (°C)"
             android:inputType="numberDecimal"
-            android:layout_marginBottom="16dp"
-            android:padding="12dp"
-            android:background="@android:drawable/edit_text"
-            android:textSize="16sp" />
+            android:layout_marginBottom="12dp"
+            android:padding="10dp"
+            android:textSize="15sp" />
 
         <!-- Calculate Button -->
         <Button
@@ -113,10 +141,8 @@
             android:text="CALCULATE"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:background="#1A237E"
-            android:textColor="#FFFFFF"
             android:padding="14dp"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="12dp" />
 
         <!-- Warning Card -->
         <LinearLayout
@@ -124,7 +150,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp"
+            android:padding="14dp"
             android:background="#FFEBEE"
             android:layout_marginBottom="8dp"
             android:visibility="gone">
@@ -143,21 +169,22 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp"
+            android:padding="14dp"
             android:background="#E8F5E9"
             android:visibility="gone">
 
             <TextView
-                android:id="@+id/textResultTemp"
+                android:id="@+id/textResultTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="18sp"
+                android:text="Results"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#1B5E20"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="6dp" />
 
             <TextView
-                android:id="@+id/textResultDelta"
+                android:id="@+id/textResultSpray"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="16sp"
@@ -165,11 +192,54 @@
                 android:layout_marginBottom="4dp" />
 
             <TextView
-                android:id="@+id/textResultFlow"
+                android:id="@+id/textResultDelta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
-                android:textColor="#2E7D32" />
+                android:textSize="14sp"
+                android:textColor="#2E7D32"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/textResultCombined"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="#2E7D32"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Assumptions Section -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#A5D6A7"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Assumptions"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#1B5E20"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/textAssumptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="#333333"
+                android:lineSpacingExtra="2dp" />
+
+            <!-- Energy Balance Button -->
+            <Button
+                android:id="@+id/btnEnergyBalance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="View Full Energy Balance"
+                android:textSize="13sp"
+                android:layout_marginTop="10dp" />
         </LinearLayout>
 
     </LinearLayout>
