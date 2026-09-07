@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * In-app Help / Operator Guide — bilingual (EN / فا) with search.
@@ -235,7 +236,13 @@ private val persianSections: List<HelpSectionData> = listOf(
     ),
     HelpSectionData(
         "مثال حل‌شده (محاسبه با موتور IF97)", blocks = listOf(
-            HelpBlock("600 t/h در 167 bar (T_sat برابر 350.8 °C)، 540 → 520 °C، اسپری 230 °C:", bold = true),
+            // Conditions line kept as a forced-LTR formula block: embedded in Persian prose,
+            // the bidi algorithm visually reverses "540 → 520" (numbers are neutral-adjacent
+            // in RTL paragraphs), which would read as "520 → 540" to an LTR-trained engineer.
+            HelpBlock(
+                "600 t/h · 167 bar (T_sat 350.8 °C) · 540 → 520 °C · spray 230 °C",
+                formula = true
+            ),
             HelpBlock(
                 "h_s = 3404.3  h_out = 3347.0  h_w = 993.4 kJ/kg\n" +
                         "اسپری = 600 × 57.3 / 2353.6 = 14.61 t/h",
@@ -271,7 +278,7 @@ private val persianSections: List<HelpSectionData> = listOf(
                     "ببیند — برای کمّی‌کردن تأخیر از صفحه گذرا استفاده کنید."),
             HelpBlock("رد ورودی‌ها", bold = true),
             HelpBlock("فشار 20–170 bar · بخار 200–560 °C · هدف ≤ ورودی بخار · آب اسپری باید " +
-                    "ساب‌کول باشد (زیر T_sat) · دمای فلز 0–700 °C · اسپری حالت B ≤ 2× دبی بخار · " +
+                    "ساب‌کول باشد (زیر T_sat) · دمای فلز 0–700 °C · اسپری حالت B ≤ دو برابر دبی بخار · " +
                     "بخار باید سوپرهیت باشد. برنامه هرگز مقداری را پنهانی پیش‌فرض نمی‌کند.")
         )
     ),
@@ -397,7 +404,8 @@ fun HelpScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text(if (langFa) "← بازگشت به ماشین‌حساب" else "← Back to Calculator")
+                // In RTL the back affordance must point RIGHT (mirrored), so the FA label uses →.
+                Text(if (langFa) "→ بازگشت به ماشین‌حساب" else "← Back to Calculator")
             }
             Spacer(Modifier.height(32.dp))
         }
@@ -455,7 +463,8 @@ private fun HelpCard(section: HelpSectionData, rtl: Boolean) {
                     else -> HelpText(
                         block.text,
                         bold = block.bold,
-                        small = block.small
+                        small = block.small,
+                        rtl = rtl
                     )
                 }
             }
@@ -464,10 +473,14 @@ private fun HelpCard(section: HelpSectionData, rtl: Boolean) {
 }
 
 @Composable
-private fun HelpText(text: String, bold: Boolean = false, small: Boolean = false) {
+private fun HelpText(text: String, bold: Boolean = false, small: Boolean = false, rtl: Boolean = false) {
+    // Persian falls back to Noto Naskh Arabic, which renders visually smaller and tighter
+    // than Latin at the same sp — bump the line height in FA mode so diacritics don't clip.
+    val base = if (small) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
+    val style = if (rtl) base.copy(lineHeight = if (small) 18.sp else 22.sp) else base
     Text(
         text,
-        style = if (small) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+        style = style,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
         modifier = Modifier.padding(bottom = if (bold) 2.dp else 0.dp)
     )
