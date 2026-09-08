@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.platen4.superheater.ui.components.HelpScreen
 import com.platen4.superheater.ui.components.SimulationScreen
 import com.platen4.superheater.ui.components.ValidationScreen
 
@@ -13,7 +14,7 @@ import com.platen4.superheater.ui.components.ValidationScreen
 @Composable
 fun MainScreen() {
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Simulate", "Validation", "About")
+    val tabs = listOf("Simulate", "Validation", "Help", "About")
 
     Scaffold(
         topBar = {
@@ -34,6 +35,7 @@ fun MainScreen() {
             when (tab) {
                 0 -> SimulationScreen(Modifier.fillMaxSize())
                 1 -> ValidationScreen(Modifier.fillMaxSize())
+                2 -> HelpScreen(Modifier.fillMaxSize())
                 else -> AboutScreen(Modifier.fillMaxSize())
             }
         }
