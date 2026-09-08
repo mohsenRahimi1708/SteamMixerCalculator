@@ -1,0 +1,1 @@
+# Default ProGuard rules. Release minification is disabled; kept for completeness.
