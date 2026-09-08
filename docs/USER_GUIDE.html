@@ -1,0 +1,423 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><style>
+@page { size: A4; margin: 18mm 16mm; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a2e; line-height: 1.5; }
+h1 { font-size: 20pt; color: #0b3d66; border-bottom: 3px solid #0b3d66; padding-bottom: 6px; margin-top: 24px; page-break-after: avoid; }
+h2 { font-size: 15pt; color: #10558a; border-bottom: 1px solid #c8d8e8; padding-bottom: 3px; margin-top: 20px; page-break-after: avoid; }
+h3 { font-size: 12pt; color: #17629c; margin-top: 14px; page-break-after: avoid; }
+h4 { font-size: 11pt; color: #17629c; page-break-after: avoid; }
+p, li { orphans: 3; widows: 3; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; page-break-inside: avoid; font-size: 9.5pt; }
+th { background: #0b3d66; color: white; text-align: left; padding: 5px 8px; }
+td { border: 1px solid #ccd8e4; padding: 4px 8px; vertical-align: top; }
+tr:nth-child(even) td { background: #f2f6fa; }
+pre { background: #f4f4f8; border: 1px solid #d8d8e4; border-left: 4px solid #0b3d66; padding: 8px 10px; font-family: Consolas, monospace; font-size: 9pt; overflow-x: hidden; page-break-inside: avoid; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #eef1f6; padding: 1px 3px; border-radius: 3px; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #c8d8e8; margin: 16px 0; }
+a { color: #10558a; text-decoration: none; }
+strong { color: #0b3d66; }
+</style></head><body>
+<h1>Platen Superheater Transient Simulation — Complete User Guide</h1>
+<p><strong>Application:</strong> Unit №4 Platen Superheater Transient Simulator (Android)</p>
+<p><strong>Platform:</strong> Android 8.0+ (API 26+)</p>
+<p><strong>Property engine:</strong> IAPWS-IF97 (Regions 1, 2, 4) — vendored <code>com.hummeling.if97</code> v2.1.0</p>
+<p><strong>Version:</strong> 1.0.0</p>
+<hr/>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-what-the-application-does">What the application does</a></li>
+<li><a href="#2-installing-the-app">Installing the app</a></li>
+<li><a href="#3-how-the-simulation-works--the-big-picture">How the simulation works — the big picture</a></li>
+<li><a href="#4-the-simulate-tab--step-by-step">The Simulate tab — step by step</a></li>
+<li><a href="#5-spray-water-rules-important">Spray water rules (important)</a></li>
+<li><a href="#6-scenario-events">Scenario events</a></li>
+<li><a href="#7-reading-the-results-and-charts">Reading the results and charts</a></li>
+<li><a href="#8-show-calculation--full-transparency">Show calculation — full transparency</a></li>
+<li><a href="#9-the-validation-tab--model-comparison">The Validation tab — model comparison</a></li>
+<li><a href="#10-calibration-against-plant-data">Calibration against plant data</a></li>
+<li><a href="#11-the-physics-inside--equations-used">The physics inside — equations used</a></li>
+<li><a href="#12-units">Units</a></li>
+<li><a href="#13-error-messages-and-what-they-mean">Error messages and what they mean</a></li>
+<li><a href="#14-faq-and-troubleshooting">FAQ and troubleshooting</a></li>
+<li><a href="#15-building-the-app-from-source">Building the app from source</a></li>
+</ol>
+<hr/>
+<h2>1. What the application does</h2>
+<p>This is an <strong>engineering simulation tool</strong>, not a static calculator. It computes how the</p>
+<p><strong>outlet steam temperature of the platen superheater</strong> in a 325 MW natural-circulation</p>
+<p>drum boiler (Unit №4) responds <strong>over time</strong> to:</p>
+<table><thead><tr><th>#</th><th>Driver</th></tr></thead><tbody>
+<tr><td>1</td><td>Steam mass flow / load changes</td></tr>
+<tr><td>2</td><td>Spray-water flow changes at the platen inlet</td></tr>
+<tr><td>3</td><td>Burner start/stop events</td></tr>
+<tr><td>4</td><td>Furnace heat-input changes</td></tr>
+<tr><td>5</td><td>Steam inlet pressure changes</td></tr>
+<tr><td>6</td><td>Steam inlet temperature changes</td></tr>
+<tr><td>7</td><td>Property changes with P and T (density ρ, cp, μ, k)</td></tr>
+<tr><td>8</td><td>Internal convection coefficient h_i changing with flow and properties</td></tr>
+<tr><td>9</td><td>Reynolds number changes with load</td></tr>
+<tr><td>10</td><td>Prandtl number changes with steam state</td></tr>
+<tr><td>11</td><td>Nusselt number changes with Re and Pr</td></tr>
+<tr><td>12</td><td>Dynamic overall heat-transfer coefficient U</td></tr>
+<tr><td>13</td><td>Tube-metal thermal inertia (the dominant delay source)</td></tr>
+<tr><td>14</td><td>Steam thermal capacity / residence time</td></tr>
+<tr><td>15</td><td>Spray injection cooling dynamics</td></tr>
+</tbody></table>
+<p>The causal chain is physical, top to bottom:</p>
+<pre><code>P, T → IF97 properties (ρ, μ, cp, k)
+     → velocity → Re → Pr → Nu → h_i → U
+     → Q (per segment)
+     → metal energy balance → steam energy balance
+     → steam outlet T (with spray enthalpy + burner heat entering dynamically)</code></pre>
+<p><strong>U is a calculated, load-dependent output — never a hard-coded constant.</strong></p>
+<h3>Plant reference data (locked, Unit №4)</h3>
+<table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>
+<tr><td>Boiler capacity</td><td>325 MW</td></tr>
+<tr><td>Type</td><td>Natural circulation, drum-type</td></tr>
+<tr><td>Burners</td><td>24 × 40 MW, 3 elevations</td></tr>
+<tr><td>Full-load steam flow</td><td>1000–1040 t/h</td></tr>
+<tr><td>Sliding pressure range</td><td>10–167 bar</td></tr>
+<tr><td>Sliding steam temperature</td><td>~200–540 °C</td></tr>
+<tr><td>Parallel panels</td><td>43</td></tr>
+<tr><td>Tubes per panel</td><td>4 (172 total)</td></tr>
+<tr><td>Passes per panel</td><td>8, pass length 6 m</td></tr>
+<tr><td>Tube OD / wall / ID</td><td>45 / 8 / 29 mm</td></tr>
+<tr><td>Inner (steam-side) area</td><td>~783 m²</td></tr>
+<tr><td>Outer (furnace-side) area</td><td>~1216 m²</td></tr>
+<tr><td>Header feed</td><td>Dual mid-point (panels 1–21 / 22–43)</td></tr>
+</tbody></table>
+<p><strong>Sections in flow order</strong> (this is the order steam actually flows, and the order the</p>
+<p>model uses):</p>
+<table><thead><tr><th>#</th><th>Section</th><th>Length</th><th>Material</th></tr></thead><tbody>
+<tr><td>1</td><td>Inlet casing</td><td>0.5 m</td><td>12Cr1MoV</td></tr>
+<tr><td>2</td><td>Lower radiant</td><td>15.0 m</td><td>SA-213 T91</td></tr>
+<tr><td>3</td><td>Inner horizontal</td><td>20.0 m</td><td>12Cr2MoWVTiB</td></tr>
+<tr><td>4</td><td>Upper horizontal</td><td>12.0 m</td><td>12Cr2MoWVTiB</td></tr>
+<tr><td>5</td><td>Outlet casing</td><td>2.5 m</td><td>12Cr1MoV</td></tr>
+</tbody></table>
+<hr/>
+<h2>2. Installing the app</h2>
+<ol>
+<li>Obtain <code>app-debug.apk</code> (built from <code>./gradlew :app:assembleDebug</code>, located in</li>
+</ol>
+<p><code>app/build/outputs/apk/debug/</code>).</p>
+<ol>
+<li>Copy it to your Android device (USB, cloud, or direct download).</li>
+<li>On the device, open the APK. Android will ask to allow installation from that source</li>
+</ol>
+<p>("Install unknown apps") — allow it once.</p>
+<ol>
+<li>Tap <strong>Install</strong>, then open <strong>Platen Superheater Transient</strong>.</li>
+</ol>
+<p>No special permissions are required. The app works fully offline — the IF97 property</p>
+<p>library is compiled into the app.</p>
+<hr/>
+<h2>3. How the simulation works — the big picture</h2>
+<p>The platen is <strong>not</strong> modeled as one lump. It is divided into the **five physical</p>
+<p>sections** listed above, and each section carries its own state:</p>
+<ul>
+<li><strong>Metal temperature</strong> <code>T_m</code> — the tube-wall metal lump (dominant inertia)</li>
+<li><strong>Steam temperature</strong> <code>T_s</code> — the steam inside that section</li>
+</ul>
+<p>Each timestep the model:</p>
+<ol>
+<li>Reads the current inputs (steam flow, spray flow/temperature, burners, pressure,</li>
+</ol>
+<p>steam temperature) — including any scenario events due at this time.</p>
+<ol>
+<li>If spray is active, performs the <strong>mixing calculation</strong> (see §5): enthalpy balance →</li>
+</ol>
+<p>mixed enthalpy → mixed temperature via the IF97 backward equation T(P,h).</p>
+<ol>
+<li>For every segment, evaluates properties (ρ, μ, cp, k) from IF97 at the current</li>
+</ol>
+<p>steam state, computes velocity → Re → Pr → Nu → h_i, then U from the cylindrical</p>
+<p>resistance chain.</p>
+<ol>
+<li>Computes the per-segment heat flows and integrates both energy balances with the</li>
+</ol>
+<p><strong>RK4</strong> method (4th-order Runge–Kutta).</p>
+<ol>
+<li>Passes each segment's outlet steam temperature as the next segment's inlet</li>
+</ol>
+<p>temperature (segment 1 receives the post-spray mixed temperature).</p>
+<ol>
+<li>Records everything for the charts.</li>
+</ol>
+<p><strong>Why the metal matters:</strong> the tube metal holds ~36 MJ/K — thousands of times more</p>
+<p>thermal capacity than the steam in the tubes. When burners step up, the metal heats</p>
+<p>first and the steam follows; that lag is exactly what the model reproduces.</p>
+<p><strong>Flow distribution assumption (explicit):</strong> total platen steam flow splits equally</p>
+<p>across all 43 panels; within a panel the 4 tubes share equally. So one tube carries</p>
+<p><code>ṁ_total / 172</code>. At full load (277.8 kg/s) and 167 bar / 520 °C (ρ ≈ 52 kg/m³) this</p>
+<p>gives ≈ 47 m/s tube velocity and Re ≈ 5·10⁵ — physically correct for superheated steam.</p>
+<hr/>
+<h2>4. The Simulate tab — step by step</h2>
+<h3>4.1 Initial state fields</h3>
+<table><thead><tr><th>Field</th><th>Meaning</th><th>Default</th></tr></thead><tbody>
+<tr><td>Steam flow t/h</td><td>Total platen steam flow at t = 0</td><td>100</td></tr>
+<tr><td>Pressure bar</td><td>Steam pressure at the platen inlet (absolute)</td><td>100</td></tr>
+<tr><td>Steam T °C</td><td>Steam temperature entering the platen at t = 0</td><td>400</td></tr>
+<tr><td>Spray T °C (&lt;250)</td><td>Spray-water temperature — must be below 250 °C</td><td>230</td></tr>
+<tr><td>Burners on</td><td>Number of burners firing at t = 0</td><td>2</td></tr>
+<tr><td>Duration min</td><td>Simulation length</td><td>15</td></tr>
+</tbody></table>
+<h3>4.2 Scenario event fields (step at t = 300 s)</h3>
+<p>One built-in event time (300 s) is provided for quick what-if tests:</p>
+<table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Flow → t/h</td><td>New steam flow applied at t = 300 s (blank/0 = no change)</td></tr>
+<tr><td>Spray → t/h</td><td>New spray flow applied at t = 300 s (0 = spray off)</td></tr>
+<tr><td>Burners →</td><td>New burner count applied at t = 300 s</td></tr>
+</tbody></table>
+<p>Leave all three empty to simulate the initial state alone (useful for seeing the</p>
+<p>natural heat-up toward equilibrium).</p>
+<h3>4.3 Running</h3>
+<p>Tap <strong>RUN SIMULATION</strong>. The engine integrates with dt = 1 s. Results appear below:</p>
+<p>summary numbers first, then four charts, then the calculation-details panel.</p>
+<p>If anything is wrong with the inputs (e.g. spray hotter than 250 °C, non-physical</p>
+<p>pressure), a red error card appears with an engineering-readable explanation instead</p>
+<p>of a crash.</p>
+<hr/>
+<h2>5. Spray water rules (important)</h2>
+<p>The app <strong>enforces the plant rule</strong> for spray water:</p>
+<p>&gt; <strong>Spray water is always subcooled and below 250 °C — in any situation.</strong></p>
+<p>Concretely, the engine checks, before every mixing calculation:</p>
+<ol>
+<li><strong>Temperature limit:</strong> spray temperature must be <strong>&lt; 250 °C</strong>.</li>
+<li><strong>Subcooling:</strong> spray temperature must be <strong>below the saturation temperature Tsat</strong></li>
+</ol>
+<p>at the mixing pressure. At 167 bar, Tsat ≈ 350 °C, so the 250 °C limit is the</p>
+<p>binding one there; at 20 bar, Tsat ≈ 212 °C, so subcooling binds first.</p>
+<p>If either check fails, the simulation refuses with a typed error explaining exactly</p>
+<p>which condition failed and by how much — for example:</p>
+<pre><code>Spray temperature 262.0 °C exceeds the 250 °C plant limit
+Spray water must be subcooled: T=220.0 °C &gt;= Tsat=212.4 °C at 20.00 bar</code></pre>
+<p><strong>Why:</strong> desuperheating sprays must evaporate completely in the steam stream. Water</p>
+<p>that is saturated or boiling at the injection pressure flashes rather than mixing,</p>
+<p>which the single-zone mixing model does not represent. The rule keeps every result in</p>
+<p>the physically valid region.</p>
+<p><strong>Spray temperature as an event:</strong> you can also change spray temperature during a</p>
+<p>scenario (<code>SPRAY_TEMP_K</code> events); the same rule is enforced at every event.</p>
+<h3>The mixing calculation (what happens when spray is on)</h3>
+<p>Four distinct states are always kept separate:</p>
+<ol>
+<li><strong>Upstream steam</strong> (pre-spray): P, T, h from IF97</li>
+<li><strong>Spray water</strong>: h from IF97 Region 1 at the injection pressure and spray temperature</li>
+<li><strong>Mixed state</strong> (post-spray, platen inlet): enthalpy balance → T(P,h)</li>
+<li><strong>Platen outlet</strong>: computed by the segment chain</li>
+</ol>
+<pre><code>h_mix = (ṁ_steam·h_steam + ṁ_spray·h_spray) / (ṁ_steam + ṁ_spray)
+T_mix = T(P, h_mix)          ← IF97 Region 2 backward equation</code></pre>
+<p>The cooling power attributable to the spray is <code>Q_spray = ṁ_spray·(h_steam − h_mix)</code>.</p>
+<hr/>
+<h2>6. Scenario events</h2>
+<p>Internally every input is a <strong>time series</strong> built from events. The built-in UI exposes</p>
+<p>one event time; the engine supports arbitrary lists (the full scenario editor ships in</p>
+<p>a coming release):</p>
+<table><thead><tr><th>Event kind</th><th>Units</th><th>Default behavior</th></tr></thead><tbody>
+<tr><td>Steam flow</td><td>kg/s (UI: t/h)</td><td>Step at event time</td></tr>
+<tr><td>Spray flow</td><td>kg/s (UI: t/h)</td><td>Step (or ramp if spray ramp configured)</td></tr>
+<tr><td>Spray temperature</td><td>K (UI: °C)</td><td>Step; must stay &lt; 250 °C</td></tr>
+<tr><td>Burners firing</td><td>count</td><td><strong>Ramped</strong> over 60 s (configurable), not stepped</td></tr>
+<tr><td>Firing fraction</td><td>0–1</td><td>Step</td></tr>
+<tr><td>Steam pressure</td><td>Pa (UI: bar)</td><td>Step</td></tr>
+<tr><td>Steam temperature</td><td>K (UI: °C)</td><td>Step</td></tr>
+</tbody></table>
+<p>The example scenario from the specification is exactly the default UI event set:</p>
+<table><thead><tr><th>t (s)</th><th>Event</th></tr></thead><tbody>
+<tr><td>0</td><td>Steam flow = 100 t/h, 2 burners on, spray = 0</td></tr>
+<tr><td>300</td><td>Steam flow → 150 t/h</td></tr>
+<tr><td>300</td><td>Spray 0 → 5 t/h</td></tr>
+<tr><td>300</td><td>Burners 2 → 3</td></tr>
+</tbody></table>
+<hr/>
+<h2>7. Reading the results and charts</h2>
+<h3>Summary numbers (at end of simulation)</h3>
+<table><thead><tr><th>Row</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Outlet T (start → end)</td><td>Steam temperature after the last segment, start vs end</td></tr>
+<tr><td>Metal T avg (end)</td><td>Average metal temperature across the 5 segments</td></tr>
+<tr><td>Mixed T (end)</td><td>Post-spray mixed temperature (equals steam T if no spray)</td></tr>
+<tr><td>h_i (end)</td><td>Internal convection coefficient, W/m²K</td></tr>
+<tr><td>U (end)</td><td>Overall heat-transfer coefficient, W/m²K</td></tr>
+<tr><td>Re (end)</td><td>Reynolds number in a tube</td></tr>
+<tr><td>Q absorbed (end)</td><td>Heat picked up by the steam across all segments, MW</td></tr>
+</tbody></table>
+<h3>Charts</h3>
+<p>Each chart plots the quantity against time; the axis label shows the value range</p>
+<p>covered:</p>
+<ol>
+<li><strong>Outlet temperature</strong> — the headline result. Watch the step response after events.</li>
+<li><strong>Metal temperature</strong> — leads the outlet; shows the thermal-inertia delay.</li>
+<li><strong>h_i vs time</strong> — internal convection responding to flow/state changes.</li>
+<li><strong>U vs time</strong> — overall coefficient; dominated by the weakest resistance.</li>
+</ol>
+<p><strong>How to interpret a step response:</strong> after a burner step the metal temperature begins</p>
+<p>rising immediately, and the outlet follows after a short dead time; after a spray step</p>
+<p>the outlet begins falling almost immediately (the spray acts at the inlet), settling</p>
+<p>toward a new steady value.</p>
+<hr/>
+<h2>8. Show calculation — full transparency</h2>
+<p>Every result must be traceable. Tap <strong>Show calculation details</strong> at the bottom of the</p>
+<p>results to see, for the end-of-simulation state:</p>
+<table><thead><tr><th>Line</th><th>Source</th></tr></thead><tbody>
+<tr><td>P, T_out</td><td>Current steam state at the outlet</td></tr>
+<tr><td>ρ</td><td>IF97 density at (P, T_out)</td></tr>
+<tr><td>cp</td><td>IF97 isobaric heat capacity</td></tr>
+<tr><td>μ</td><td>IF97 dynamic viscosity</td></tr>
+<tr><td>k</td><td>IF97 thermal conductivity</td></tr>
+<tr><td>Pr</td><td>IF97 Prandtl number</td></tr>
+<tr><td>Re</td><td>ρ·v·D_i/μ from the flow model</td></tr>
+<tr><td>Nu</td><td>0.023·Re^0.8·Pr^0.4 (Dittus–Boelter)</td></tr>
+<tr><td>h_i = Nu·k/D_i</td><td>internal convection</td></tr>
+<tr><td>U</td><td>cylindrical resistance chain</td></tr>
+</tbody></table>
+<p>This is a core requirement of the tool (engineering traceability), not a convenience</p>
+<p>feature.</p>
+<hr/>
+<h2>9. The Validation tab — model comparison</h2>
+<p>The app ships <strong>three model levels</strong> and runs them side by side on the same scenario:</p>
+<table><thead><tr><th>Model</th><th>Description</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><strong>Constant-U</strong></td><td>Single block, fixed U (800 W/m²K)</td><td>Plant-YAML reference behavior</td></tr>
+<tr><td><strong>Dynamic h_i</strong></td><td>Single block, h_i from the Re→Pr→Nu chain each step</td><td>Isolates the effect of dynamic heat transfer</td></tr>
+<tr><td><strong>Segmented (RK4)</strong></td><td>Full 5-segment transient model</td><td>The production model</td></tr>
+</tbody></table>
+<p>Tap <strong>Run comparison</strong> to see the end-of-run outlet temperature of all three on the</p>
+<p>reference scenario (100→150 t/h and 2→3 burners at t = 300 s).</p>
+<p><strong>The 800 vs ~170 W/m²K discrepancy is surfaced, not hidden.</strong> Plant YAML data gives</p>
+<p>U ≈ 800 W/m²K at low load, while the Dittus–Boelter chain gives ~170 W/m²K at full</p>
+<p>load. Both paths are provided as separate, clearly labeled modes — the app never</p>
+<p>silently blends them. Resolving the gap is a calibration exercise (next section), not</p>
+<p>something the app decides for you.</p>
+<hr/>
+<h2>10. Calibration against plant data</h2>
+<p>The <strong>Fit parameters</strong> workflow lets you calibrate two effective parameters against</p>
+<p>measured plant data:</p>
+<ol>
+<li>Export a window of historian data containing the <strong>outlet temperature</strong> sampled</li>
+</ol>
+<p>evenly (the simulation grid is 1 s × 900 s; resample your data to match, or paste a</p>
+<p>representative series of at least 10 points).</p>
+<ol>
+<li>Paste the values (°C), comma- or newline-separated, into the text field.</li>
+<li>Tap <strong>Fit parameters</strong>.</li>
+</ol>
+<p>The fitter grid-searches:</p>
+<ul>
+<li><strong>F_platen</strong> (fraction of furnace release reaching the platen) in 0.05…0.5</li>
+<li><strong>h_o</strong> (external/furnace-side convection) in 20…500 W/m²K</li>
+</ul>
+<p>and reports fit quality:</p>
+<table><thead><tr><th>Metric</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>MAE</td><td>Mean absolute error, K</td></tr>
+<tr><td>RMSE</td><td>Root-mean-square error, K</td></tr>
+<tr><td>Max error</td><td>Worst instantaneous error, K</td></tr>
+<tr><td>Bias</td><td>Mean signed error, K (model too hot or too cold overall)</td></tr>
+<tr><td>R²</td><td>Fraction of variance explained</td></tr>
+</tbody></table>
+<p><strong>Fitted values are labeled empirical and kept separate</strong> from the physical</p>
+<p>parameters — the app never overwrites physics with fitted numbers. Use the fitted</p>
+<p>F_platen/h_o as the configuration for subsequent simulation runs.</p>
+<hr/>
+<h2>11. The physics inside — equations used</h2>
+<h3>11.1 Property engine (IAPWS-IF97)</h3>
+<p>All thermophysical properties come from IAPWS-IF97:</p>
+<ul>
+<li><strong>Region 1</strong> — compressed/subcooled water (feedwater, spray water)</li>
+<li><strong>Region 2</strong> — superheated steam (main flow, and T(P,h) backward equation)</li>
+<li><strong>Region 4</strong> — saturation line (Tsat for the spray subcooling check)</li>
+</ul>
+<p>Verified in the test suite against the official IAPWS tables, e.g.:</p>
+<table><thead><tr><th>Quantity</th><th>State</th><th>Official value</th></tr></thead><tbody>
+<tr><td>h</td><td>3 MPa, 300 K</td><td>115.331 kJ/kg</td></tr>
+<tr><td>h</td><td>3 MPa, 500 K</td><td>975.542 kJ/kg</td></tr>
+<tr><td>h</td><td>30 MPa, 700 K</td><td>2631.495 kJ/kg</td></tr>
+<tr><td>μ</td><td>0.1 MPa, 298.15 K</td><td>0.890022551 mPa·s</td></tr>
+<tr><td>k</td><td>0.1 MPa, 298.15 K</td><td>0.607509806 W/m·K</td></tr>
+<tr><td>Tsat</td><td>16.7 MPa</td><td>623.988 K</td></tr>
+</tbody></table>
+<h3>11.2 Flow</h3>
+<pre><code>A_flow   = π·D_i²/4                D_i = 29 mm
+ṁ_tube   = ṁ_total / (43·4)
+v        = ṁ_tube / (ρ·A_flow)
+Re       = ρ·v·D_i/μ</code></pre>
+<h3>11.3 Heat transfer</h3>
+<pre><code>Pr  = cp·μ/k
+Nu  = 0.023·Re^0.8·Pr^0.4          (heating; n = 0.3 for cooling)
+h_i = Nu·k/D_i</code></pre>
+<p>Dittus–Boelter validity (Pr 0.7–160, Re &gt; 10 000) is checked and warned, never</p>
+<p>silently applied outside its range.</p>
+<h3>11.4 Overall U (cylindrical, per outer area)</h3>
+<pre><code>1/(U·A_o) = 1/(h_i·A_i) + ln(D_o/D_i)/(2π·k_wall·L) + R_fouling + 1/(h_o·A_o)</code></pre>
+<p>All four resistances are exposed; the dominant one is identified in the results.</p>
+<h3>11.5 Furnace heat input</h3>
+<pre><code>Q_platen = n_burners · 40 MW · firing_fraction · F_platen</code></pre>
+<p>F_platen default 0.15. Burner changes ramp over 60 s.</p>
+<h3>11.6 Per-segment energy balances</h3>
+<pre><code>C_metal · dT_m/dt = Q_furnace,seg − h_i·A_i·(T_m − T_s) − Q_loss
+C_steam · dT_s/dt = ṁ·cp·(T_in − T_s) + h_i·A_i·(T_m − T_s)</code></pre>
+<p>The steam balance is integrated in exponential-relaxation form with</p>
+<p><code>τ = max(C_steam/(ṁ·cp + h_i·A_i), Δt)</code> — the same steady state, stable at any</p>
+<p>segment size (the short casing segments hold very little steam).</p>
+<h3>11.7 Solver</h3>
+<p>RK4, default Δt = 1 s (configurable 0.1–2 s). Verified by the timestep-halving</p>
+<p>convergence test: dt = 2 s and dt = 1 s agree within 5 K on the reference scenario.</p>
+<hr/>
+<h2>12. Units</h2>
+<table><thead><tr><th>Context</th><th>Units</th></tr></thead><tbody>
+<tr><td>UI display</td><td>bar, °C, t/h, MW, W/m²K</td></tr>
+<tr><td>Engine internals</td><td>SI only: Pa, K, kg/s, J/kg, W, m, kg/m³, J/kg·K, Pa·s, W/m·K</td></tr>
+</tbody></table>
+<p>Conversions happen exactly once, at the UI boundary. Internally nothing is ever</p>
+<p>mixed.</p>
+<hr/>
+<h2>13. Error messages and what they mean</h2>
+<table><thead><tr><th>Message</th><th>Cause</th><th>What to do</th></tr></thead><tbody>
+<tr><td><code>Spray temperature X °C exceeds the 250 °C plant limit</code></td><td>Spray T ≥ 250 °C</td><td>Set spray temperature below 250 °C</td></tr>
+<tr><td><code>Spray water must be subcooled: T=… &gt;= Tsat=… at … bar</code></td><td>Spray T ≥ Tsat at mixing pressure</td><td>Lower spray temperature below Tsat</td></tr>
+<tr><td><code>IF97 state out of range: …</code></td><td>Pressure/temperature outside IF97 validity (e.g. &gt; 100 MPa, &lt; 0 °C)</td><td>Bring inputs into the physical range</td></tr>
+<tr><td><code>Steam flow must be positive</code></td><td>Zero/negative flow entered</td><td>Enter a positive flow</td></tr>
+<tr><td><code>Simulation error at t=…</code></td><td>A state went non-physical mid-run</td><td>Reduce event magnitude, check initial state</td></tr>
+</tbody></table>
+<p>All errors are typed results — the app never crashes on bad input; it explains.</p>
+<hr/>
+<h2>14. FAQ and troubleshooting</h2>
+<p><strong>Q: The outlet temperature keeps rising the whole run — is that wrong?</strong></p>
+<p>A: Probably not. The initial metal temperature equals the initial steam temperature;</p>
+<p>if the burner heat input exceeds what the flow carries away, the system is heating</p>
+<p>toward a higher equilibrium and 15 minutes is not enough to settle. Extend the</p>
+<p>duration or compare spray-on vs spray-off runs (the Validation comparison does this).</p>
+<p><strong>Q: Why is tube velocity ~47 m/s at full load? Isn't that high?</strong></p>
+<p>A: Superheated steam at 167 bar/520 °C has density ≈ 52 kg/m³ — a tenth of water.</p>
+<p>High velocity at full load is physically correct; Re ≈ 5·10⁵ is comfortably turbulent.</p>
+<p><strong>Q: Why does the metal respond before the outlet?</strong></p>
+<p>A: The furnace heats the metal directly; the steam only receives heat through the</p>
+<p>metal. That cascade delay is the dominant transient behavior of a superheater.</p>
+<p><strong>Q: Can I set spray to 300 °C to test the limit?</strong></p>
+<p>A: The engine will refuse — that is the plant rule working as intended. Spray water is</p>
+<p>always subcooled and below 250 °C in this plant.</p>
+<p><strong>Q: What pressure should I enter — absolute or gauge?</strong></p>
+<p>A: Absolute (bar a). IF97 works in absolute pressure.</p>
+<p><strong>Q: Where does the IF97 library come from?</strong></p>
+<p>A: <code>com.hummeling.if97</code> v2.1.0 by Hummeling Engineering BV, vendored in source form</p>
+<p>under the LGPL (license file included in the source tree).</p>
+<hr/>
+<h2>15. Building the app from source</h2>
+<pre><code># Requirements: JDK 17, Android SDK (see local.properties), internet for Gradle deps
+git clone https://github.com/mohsenRahimi1708/SteamMixerCalculator.git
+cd SteamMixerCalculator   # checkout unit4-platen-transient
+# the app lives in the platen-superheater/ folder of that branch
+./gradlew :app:testDebugUnitTest   # 17 tests, all green
+./gradlew :app:assembleDebug       # APK at app/build/outputs/apk/debug/app-debug.apk</code></pre>
+<p>Architecture summary:</p>
+<pre><code>UI (Compose) → Screens → PlatenSimulator → SteamProperties (IF97)
+                             ↓
+              FlowModel / HeatTransfer / OverallU
+                             ↓
+              BurnerModel / SprayModel / ScenarioState</code></pre>
+<p>The engine package is pure Kotlin/JVM (no Android dependencies) and fully unit-tested;</p>
+<p>the property engine sits behind an interface so an alternative implementation (e.g.</p>
+<p>CoolProp) can be swapped in without touching the model.</p>
+<hr/>
+<p>*Document version 1.0.0 — generated with the application source. For the full</p>
+<p>engineering derivation of every equation, see <code>ENGINEERING.md</code> in the repository.*</p>
+</body></html>
