@@ -15,11 +15,12 @@ class SingleBlockModel(
     private val props: SteamProperties,
     private val mode: Mode,
     private val fixedUWm2K: Double = 800.0,
-    private val metalMassKg: Double = 62_500.0,
-    private val metalCpJkgK: Double = 520.0,
-    private val innerAreaM2: Double = Unit4Plant.INNER_AREA_M2,
-    private val outerAreaM2: Double = Unit4Plant.OUTER_AREA_M2,
-    private val steamVolumeM3: Double = 5.7,
+    private val metalMassKg: Double = Unit4Plant.totalMetalMassKg(),
+    private val metalCpJkgK: Double = Unit4Plant.METAL_CP_JKG_K,
+    private val innerAreaM2: Double = Unit4Plant.innerAreaM2(),
+    private val outerAreaM2: Double = Unit4Plant.outerAreaM2(),
+    private val steamVolumeM3: Double = Unit4Plant.steamVolumeM3(),
+    private val durationSeconds: Double = 900.0,
     private val dtSeconds: Double = 0.5,
 ) {
     enum class Mode { CONSTANT_U, DYNAMIC_HI }
@@ -43,7 +44,7 @@ class SingleBlockModel(
         val pressure = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_PRESSURE_PA, initialPressurePa)
         val steamTemp = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_TEMP_K, initialSteamTempK)
 
-        val nSteps = (1800.0 / dtSeconds).toInt() + 1
+        val nSteps = (durationSeconds / dtSeconds).toInt() + 1
         val times = DoubleArray(nSteps)
         val outlet = DoubleArray(nSteps)
         val metal = DoubleArray(nSteps)
@@ -61,15 +62,15 @@ class SingleBlockModel(
             val mSpray = sprayFlow(t)
             val p = pressure(t)
             val tSteam = steamTemp(t)
-            // Spray water: 230 °C default — always subcooled, below the 250 °C plant limit
-            val tIn = if (mSpray > 0) spray.mix(mDot, mSpray, p, tSteam, 503.15).mixedTemperatureK else tSteam
+            // Spray water: default 150 °C — subcooled, inside the 100-180 °C window
+            val tIn = if (mSpray > 0) spray.mix(mDot, mSpray, p, tSteam, Unit4Plant.DEFAULT_SPRAY_TEMP_C + 273.15).mixedTemperatureK else tSteam
 
             val rho = props.densityPT(p, ts)
             val mu = props.viscosityPT(p, ts)
             val cp = props.cpPT(p, ts)
             val kCond = props.conductivityPT(p, ts)
             val flow = FlowModel.compute(mDot, Unit4Plant.PANELS, rho, mu)
-            val ht = HeatTransfer.dittusBoelter(flow.tubeVelocityMs, 0.029, rho, mu, cp, kCond)
+            val ht = HeatTransfer.dittusBoelter(flow.tubeVelocityMs, Unit4Plant.TUBE_ID_MM / 1000.0, rho, mu, cp, kCond)
 
             val heatTransferWm2K = when (mode) {
                 Mode.CONSTANT_U -> fixedUWm2K * outerAreaM2 / innerAreaM2 // per inner area

@@ -34,8 +34,9 @@ class BurnerModel(
 class SprayModel(private val props: SteamProperties) {
 
     companion object {
-        /** Plant rule: spray water temperature is always below 250 °C. */
-        const val MAX_SPRAY_TEMP_K = 523.15 // 250 °C
+        /** Plant rule (refactored spec §9): spray water is subcooled, 100-180 °C. */
+        const val MIN_SPRAY_TEMP_K = Unit4Plant.SPRAY_MIN_TEMP_C + 273.15 // 100 °C
+        const val MAX_SPRAY_TEMP_K = Unit4Plant.SPRAY_MAX_TEMP_C + 273.15 // 180 °C
     }
 
     data class MixingResult(
@@ -72,14 +73,15 @@ class SprayModel(private val props: SteamProperties) {
         require(steamFlowKgs > 0.0) { "Steam flow must be positive" }
         require(sprayFlowKgs >= 0.0) { "Spray flow must be non-negative" }
 
-        // Plant rule: spray water is always subcooled and below 250 °C.
-        // Enforce both conditions explicitly with engineering-readable errors (spec §20).
+        // Plant rule (refactored spec §9): spray water is always subcooled and
+        // between 100 and 180 °C. Enforce all conditions explicitly with
+        // engineering-readable errors (spec §20).
         if (sprayFlowKgs > 0.0) {
             val tSat = props.saturationTemperatureP(steamPressurePa)
-            if (sprayTemperatureK >= SprayModel.MAX_SPRAY_TEMP_K) {
+            if (sprayTemperatureK < SprayModel.MIN_SPRAY_TEMP_K || sprayTemperatureK > SprayModel.MAX_SPRAY_TEMP_K) {
                 throw SteamPropertyException(
                     "Spray temperature " + "%.1f".format(sprayTemperatureK - 273.15) +
-                        " °C exceeds the 250 °C plant limit",
+                        " °C outside the 100-180 °C plant window",
                     pressurePa = steamPressurePa,
                     temperatureK = sprayTemperatureK,
                 )
@@ -123,14 +125,19 @@ class SprayModel(private val props: SteamProperties) {
 }
 
 /**
- * Time-stamped scenario events (spec §15). Events are applied in time order;
- * values are absolute targets (not deltas) unless [relative] is set.
+ * Time-stamped scenario events. Events are applied in time order; values are absolute
+ * targets (not deltas) unless [relative] is set.
+ *
+ * **[enabled]** is the per-scenario switch (refactored spec §15): the user enables or
+ * disables each scenario independently and can simulate a single scenario or any mix —
+ * disabled events are simply excluded from the input interpolation.
  */
 data class ScenarioEvent(
     val timeSeconds: Double,
     val kind: Kind,
     val value: Double,
     val relative: Boolean = false,
+    val enabled: Boolean = true,
 ) {
     enum class Kind { STEAM_FLOW_KGS, SPRAY_FLOW_KGS, SPRAY_TEMP_K, BURNERS_FIRING, FIRING_FRACTION, STEAM_PRESSURE_PA, STEAM_TEMP_K }
 }
@@ -152,7 +159,7 @@ class ScenarioState(events: List<ScenarioEvent> = emptyList()) {
         private set
     var steamTempK: Double = 673.15 // 400 C
         private set
-    var sprayTempK: Double = 503.15 // 230 C — always below the 250 C plant limit
+    var sprayTempK: Double = Unit4Plant.DEFAULT_SPRAY_TEMP_C + 273.15 // 150 C default
         private set
 
     /** Apply all events with time <= [tSeconds], in order. */
@@ -164,8 +171,9 @@ class ScenarioState(events: List<ScenarioEvent> = emptyList()) {
                 ScenarioEvent.Kind.SPRAY_FLOW_KGS -> sprayFlowKgs = if (e.relative) sprayFlowKgs + e.value else e.value
                 ScenarioEvent.Kind.SPRAY_TEMP_K -> {
                     sprayTempK = if (e.relative) sprayTempK + e.value else e.value
-                    require(sprayTempK < SprayModel.MAX_SPRAY_TEMP_K) {
-                        "Spray temperature must stay below 250 °C (got " + "%.1f".format(sprayTempK - 273.15) + " °C)"
+                    require(sprayTempK >= SprayModel.MIN_SPRAY_TEMP_K && sprayTempK <= SprayModel.MAX_SPRAY_TEMP_K) {
+                        "Spray temperature must stay within 100-180 °C (got " +
+                            "%.1f".format(sprayTempK - 273.15) + " °C)"
                     }
                 }
                 ScenarioEvent.Kind.BURNERS_FIRING -> burnersFiring = if (e.relative) burnersFiring + e.value.toInt() else e.value.toInt()

@@ -5,6 +5,10 @@ import kotlin.math.abs
 /**
  * Piecewise interpolators built from scenario events — deterministic and RK4-safe
  * (no hidden state mutated inside derivative evaluations).
+ *
+ * **Enabled-flag semantics:** disabled events are excluded when the interpolator
+ * list is built, so an event that is toggled off simply never fires. This is the
+ * mechanism behind single-scenario and mixed-scenario runs (refactored spec §15).
  */
 object EventInterpolators {
 
@@ -44,26 +48,32 @@ object EventInterpolators {
         return f
     }
 
-    fun of(events: List<ScenarioEvent>, kind: ScenarioEvent.Kind, initial: Double, ramp: Boolean = false): (Double) -> Double {
-        val pts = events.filter { it.kind == kind }.map { it.timeSeconds to it.value }
+    fun of(
+        events: List<ScenarioEvent>,
+        kind: ScenarioEvent.Kind,
+        initial: Double,
+        ramp: Boolean = false,
+    ): (Double) -> Double {
+        val pts = events.filter { it.kind == kind && it.enabled }.map { it.timeSeconds to it.value }
         return if (ramp) ramp(pts, initial) else step(pts, initial)
     }
 }
 
 /**
- * Platen superheater transient simulation (spec §11-§13).
+ * Platen superheater transient simulation — **uniform lumped model** (refactored spec).
  *
- * Five physical sections in flow order (inlet casing -> lower radiant -> inner
- * horizontal -> upper horizontal -> outlet casing). Each segment carries its own
- * metal mass, steam mass, and thermal state; steam state propagates segment to
- * segment (outlet of segment n = inlet of segment n+1).
+ * The platen coil is treated as a single uniform tube (one metal node, one steam node):
+ * no segmentation, single material (12Cr2MoWVTiB), uniform heat flux. Energy balances:
  *
- * Per-segment direct energy balance (not LMTD):
- *   C_metal * dT_m/dt = Q_furnace,seg - h_i*A_i*(T_m - T_s) - Q_loss
+ *   C_metal * dT_m/dt = Q_platen - h_i*A_i*(T_m - T_s) - Q_loss
  *   C_steam * dT_s/dt = m_dot*cp*(T_in - T_s) + h_i*A_i*(T_m - T_s)
  *
  * Integrated with RK4. Spray mixing (4-state model) is applied at the platen inlet
  * every timestep; T(P,h) comes from the IF97 Region 2 backward equation.
+ *
+ * **Scenario enable/disable:** each [ScenarioEvent] carries an `enabled` flag; disabled
+ * events are excluded from the input interpolation, so the user can simulate a single
+ * scenario or any mix of scenarios (refactored spec §15).
  */
 class PlatenSimulator(
     private val props: SteamProperties,
@@ -78,101 +88,134 @@ class PlatenSimulator(
         val hoWm2K: Double = 150.0,
         val foulingKm2W: Double = 0.0,
         val platenFraction: Double = 0.15,
-        /** Q_platen split across the 5 sections (must sum to 1.0). */
-        val heatFractions: DoubleArray = doubleArrayOf(0.0, 0.60, 0.25, 0.15, 0.0),
         val burnerRampSeconds: Double = 60.0,
         val sprayRampSeconds: Double = 0.0,
         val lossCoeffWm2K: Double = 0.0,
         val ambientK: Double = 300.0,
-        val initialMetalK: Double? = null,
+        /** Initial metal temperature [K] — user input, default 450 °C (refactored spec §15). */
+        val initialMetalK: Double = (Unit4Plant.DEFAULT_METAL_TEMP_C + 273.15),
+        /** Wall thermal conductivity [W/m·K] — single uniform material. */
+        val wallKWmK: Double = Unit4Plant.METAL_K_WM_K,
+        /** Metal specific heat [J/kg·K] — single uniform material. */
+        val metalCpJkgK: Double = Unit4Plant.METAL_CP_JKG_K,
+    )
+
+    /** All thermodynamic and derived parameters at one time sample (refactored spec §16). */
+    data class Sample(
+        val timeS: Double,
+        val pressurePa: Double,
+        val steamTempK: Double,
+        val metalTempK: Double,
+        val mixedTempK: Double,
+        val outletTempK: Double,
+        val enthalpyJkg: Double,
+        val densityKgM3: Double,
+        val cpJkgK: Double,
+        val viscosityPaS: Double,
+        val conductivityWmK: Double,
+        val prandtl: Double,
+        val steamFlowKgs: Double,
+        val sprayFlowKgs: Double,
+        val velocityMs: Double,
+        val reynolds: Double,
+        val nusselt: Double,
+        val hiWm2K: Double,
+        val hoWm2K: Double,
+        val uWm2K: Double,
+        val qPlatenW: Double,
+        val qAbsorbedW: Double,
+        val validityWarnings: List<String>,
     )
 
     class Result(
         val times: DoubleArray,
         val outletTempK: DoubleArray,
-        val metalTempAvgK: DoubleArray,
+        val metalTempK: DoubleArray,
         val mixedTempK: DoubleArray,
+        val inletSteamTempK: DoubleArray,
+        val pressurePa: DoubleArray,
         val hiWm2K: DoubleArray,
         val uWm2K: DoubleArray,
         val reynolds: DoubleArray,
         val prandtl: DoubleArray,
         val nusselt: DoubleArray,
+        val velocityMs: DoubleArray,
+        val densityKgM3: DoubleArray,
+        val cpJkgK: DoubleArray,
+        val viscosityPaS: DoubleArray,
+        val conductivityWmK: DoubleArray,
+        val enthalpyJkg: DoubleArray,
         val qPlatenW: DoubleArray,
         val qAbsorbedW: DoubleArray,
         val sprayFlowKgs: DoubleArray,
         val steamFlowKgs: DoubleArray,
-        val pressurePa: DoubleArray,
-        val segmentSteamTempK: Array<DoubleArray>,
-        val segmentMetalTempK: Array<DoubleArray>,
+        /** Full parameter sample every [sampleStride]-th step — every value accessible in the UI. */
+        val samples: List<Sample>,
         val error: String? = null,
     )
 
-    // ---- Geometry (computed once) ----
+    // ---- Uniform geometry (computed once) ----
     private val tubeODM = Unit4Plant.TUBE_OD_MM / 1000.0
     private val tubeIDM = Unit4Plant.TUBE_ID_MM / 1000.0
-    private val totalLengthM = Unit4Plant.SECTIONS.sumOf { it.lengthM }
-    private val wallAreaPerM2 = Math.PI * (tubeODM * tubeODM - tubeIDM * tubeIDM) / 4.0 // metal cross-section [m2]
-    private val totalMetalMassKg = wallAreaPerM2 * totalLengthM * Unit4Plant.TOTAL_TUBES * 7750.0
-    private val steamVolumePerM3 = Math.PI * tubeIDM * tubeIDM / 4.0 * Unit4Plant.TOTAL_TUBES // [m3/m]
-
-    private val segmentMetalMassKg = DoubleArray(5) { i ->
-        val s = Unit4Plant.SECTIONS[i]
-        wallAreaPerM2 * s.lengthM * Unit4Plant.TOTAL_TUBES * s.densityKgM3
-    }
-    private val segmentSteamVolumeM3 = DoubleArray(5) { i ->
-        steamVolumePerM3 * Unit4Plant.SECTIONS[i].lengthM
-    }
-    private val segmentInnerAreaM2 = DoubleArray(5) { i ->
-        Math.PI * tubeIDM * Unit4Plant.SECTIONS[i].lengthM * Unit4Plant.TOTAL_TUBES
-    }
-    private val segmentOuterAreaM2 = DoubleArray(5) { i ->
-        Math.PI * tubeODM * Unit4Plant.SECTIONS[i].lengthM * Unit4Plant.TOTAL_TUBES
-    }
+    private val totalLengthM = Unit4Plant.TOTAL_TUBE_LENGTH_M
+    private val metalMassKg = Unit4Plant.totalMetalMassKg()
+    private val innerAreaM2 = Unit4Plant.innerAreaM2()
+    private val outerAreaM2 = Unit4Plant.outerAreaM2()
+    private val steamVolumeM3 = Unit4Plant.steamVolumeM3()
 
     init {
-        require(abs(config.heatFractions.sum() - 1.0) < 1e-9) { "heatFractions must sum to 1.0" }
         require(config.dtSeconds > 0.0) { "dt must be positive" }
+        require(config.durationSeconds > 0.0) { "duration must be positive" }
+        require(config.activePanels in 1..Unit4Plant.PANELS) { "activePanels must be 1..${Unit4Plant.PANELS}" }
     }
 
     fun run(
         events: List<ScenarioEvent> = emptyList(),
         initialSteamTempK: Double = 673.15,
         initialPressurePa: Double = 100.0 * 1e5,
+        initialSteamFlowKgs: Double = 100.0 / 3.6,
     ): Result {
         val spray = SprayModel(props)
-        val nSeg = 5
         val nSteps = (config.durationSeconds / config.dtSeconds).toInt() + 1
 
-        // Input interpolators (deterministic, RK4-safe)
-        val steamFlow = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_FLOW_KGS, initialSteamFlow(events), ramp = false)
+        // Input interpolators (deterministic, RK4-safe; disabled events excluded).
+        // Initial conditions come from the explicit parameters only — an event at a
+        // later time must never alter the state before its time.
+        val steamFlow = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_FLOW_KGS, initialSteamFlowKgs)
         val sprayFlow = EventInterpolators.of(events, ScenarioEvent.Kind.SPRAY_FLOW_KGS, 0.0, ramp = config.sprayRampSeconds > 0)
-        val sprayTemp = EventInterpolators.of(events, ScenarioEvent.Kind.SPRAY_TEMP_K, 503.15) // 230 C default, always < 250 C
+        val sprayTemp = EventInterpolators.of(events, ScenarioEvent.Kind.SPRAY_TEMP_K, Unit4Plant.DEFAULT_SPRAY_TEMP_C + 273.15)
         val burners = EventInterpolators.of(events, ScenarioEvent.Kind.BURNERS_FIRING, 2.0, ramp = true)
         val pressure = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_PRESSURE_PA, initialPressurePa)
         val steamTemp = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_TEMP_K, initialSteamTempK)
 
-        val tMetal0 = config.initialMetalK ?: initialSteamTempK
-        var state = DoubleArray(2 * nSeg) { i -> if (i % 2 == 0) tMetal0 else initialSteamTempK }
+        var state = doubleArrayOf(config.initialMetalK, initialSteamTempK)
 
         // Output buffers
         val times = DoubleArray(nSteps)
         val outlet = DoubleArray(nSteps)
-        val metalAvg = DoubleArray(nSteps)
+        val metalArr = DoubleArray(nSteps)
         val mixedT = DoubleArray(nSteps)
+        val inletT = DoubleArray(nSteps)
+        val pressArr = DoubleArray(nSteps)
         val hiArr = DoubleArray(nSteps)
         val uArr = DoubleArray(nSteps)
         val reArr = DoubleArray(nSteps)
         val prArr = DoubleArray(nSteps)
         val nuArr = DoubleArray(nSteps)
+        val velArr = DoubleArray(nSteps)
+        val rhoArr = DoubleArray(nSteps)
+        val cpArr = DoubleArray(nSteps)
+        val muArr = DoubleArray(nSteps)
+        val kArr = DoubleArray(nSteps)
+        val hArr = DoubleArray(nSteps)
         val qPlat = DoubleArray(nSteps)
         val qAbs = DoubleArray(nSteps)
         val sprayArr = DoubleArray(nSteps)
         val flowArr = DoubleArray(nSteps)
-        val pressArr = DoubleArray(nSteps)
-        @Suppress("UNCHECKED_CAST")
-        val segSteam = Array(nSteps) { DoubleArray(nSeg) }
-        @Suppress("UNCHECKED_CAST")
-        val segMetal = Array(nSteps) { DoubleArray(nSeg) }
+        val sampleStride = 10
+        val samples = ArrayList<Sample>(nSteps / sampleStride + 2)
+
+        val burner = BurnerModel(platenFraction = config.platenFraction, rampSeconds = config.burnerRampSeconds)
 
         for (k in 0 until nSteps) {
             val t = k * config.dtSeconds
@@ -182,125 +225,144 @@ class PlatenSimulator(
             val mSpray = sprayFlow(t).coerceAtLeast(0.0)
             val p = pressure(t)
             val tSteam = steamTemp(t)
-            val burnersOn = burners(t)
 
             // Spray mixing at platen inlet (4-state model) — if no spray, inlet = steam state
             val mix = if (mSpray > 0.0) {
-                spray.mix(mDot, mSpray, p, tSteam, sprayTemp(t))
+                try {
+                    spray.mix(mDot, mSpray, p, tSteam, sprayTemp(t))
+                } catch (e: SteamPropertyException) {
+                    return resultWithError(
+                        times, outlet, metalArr, mixedT, inletT, pressArr, hiArr, uArr, reArr, prArr,
+                        nuArr, velArr, rhoArr, cpArr, muArr, kArr, hArr, qPlat, qAbs, sprayArr, flowArr,
+                        samples, "Spray error at t=${"%.1f".format(t)}s: ${e.message}",
+                    )
+                }
             } else null
             val tIn = mix?.mixedTemperatureK ?: tSteam
-            val qPlaten = BurnerModel(platenFraction = config.platenFraction, rampSeconds = config.burnerRampSeconds)
-                .platenHeatW(burnersOn.toInt(), 1.0, t)
+            val qPlaten = burner.platenHeatW(burners(t).toInt(), 1.0, t)
 
-            // ---- RK4 step ----
-            val h = config.dtSeconds
-            val k1 = derivatives(state, t, mDot, mSpray, mix, p, tIn, qPlaten)
-            val k2 = derivatives(add(state, mul(k1, h / 2)), t + h / 2, mDot, mSpray, mix, p, tIn, qPlaten)
-            val k3 = derivatives(add(state, mul(k2, h / 2)), t + h / 2, mDot, mSpray, mix, p, tIn, qPlaten)
-            val k4 = derivatives(add(state, mul(k3, h)), t + h, mDot, mSpray, mix, p, tIn, qPlaten)
-
-            for (i in state.indices) {
-                state[i] += h / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
-            }
-
-            // ---- Record outputs ----
-            outlet[k] = state[2 * nSeg - 1]
-            metalAvg[k] = (0 until nSeg).sumOf { state[2 * it] } / nSeg
-            mixedT[k] = tIn
-            sprayArr[k] = mSpray
-            flowArr[k] = mDot
-            pressArr[k] = p
-            qPlat[k] = qPlaten
-            for (i in 0 until nSeg) {
-                segSteam[k][i] = state[2 * i + 1]
-                segMetal[k][i] = state[2 * i]
-            }
-
-            // Heat-transfer chain at segment 0 (representative; all segments share flow)
-            val s0 = state[1]
+            // ---- Record outputs BEFORE stepping (t=0 shows the exact initial condition) ----
+            val ts = state[1]
+            val tm = state[0]
             try {
-                val rho = props.densityPT(p, s0)
-                val mu = props.viscosityPT(p, s0)
-                val cp = props.cpPT(p, s0)
-                val kCond = props.conductivityPT(p, s0)
-                val pr = props.prandtlPT(p, s0)
+                val rho = props.densityPT(p, ts)
+                val mu = props.viscosityPT(p, ts)
+                val cp = props.cpPT(p, ts)
+                val kCond = props.conductivityPT(p, ts)
+                val pr = props.prandtlPT(p, ts)
+                val enthalpy = props.enthalpyPT(p, ts)
                 val flow = FlowModel.compute(mDot, config.activePanels, rho, mu)
                 val ht = HeatTransfer.dittusBoelter(flow.tubeVelocityMs, tubeIDM, rho, mu, cp, kCond, config.heating)
-                val u = OverallU.compute(ht.hiWm2K, config.hoWm2K, tubeODM, tubeIDM, 1.0, 32.0, config.foulingKm2W)
+                val u = OverallU.compute(ht.hiWm2K, config.hoWm2K, tubeODM, tubeIDM, totalLengthM, config.wallKWmK, config.foulingKm2W)
+                val qAbsorbed = ht.hiWm2K * innerAreaM2 * (tm - ts)
+
+                outlet[k] = ts
+                metalArr[k] = tm
+                mixedT[k] = tIn
+                inletT[k] = tSteam
+                pressArr[k] = p
                 hiArr[k] = ht.hiWm2K
                 uArr[k] = u.uWm2K
                 reArr[k] = ht.reynolds
                 prArr[k] = pr
                 nuArr[k] = ht.nusselt
-                qAbs[k] = (0 until nSeg).sumOf { i ->
-                    ht.hiWm2K * segmentInnerAreaM2[i] * (state[2 * i] - state[2 * i + 1])
+                velArr[k] = flow.tubeVelocityMs
+                rhoArr[k] = rho
+                cpArr[k] = cp
+                muArr[k] = mu
+                kArr[k] = kCond
+                hArr[k] = enthalpy
+                qPlat[k] = qPlaten
+                qAbs[k] = qAbsorbed
+                sprayArr[k] = mSpray
+                flowArr[k] = mDot
+
+                if (k % sampleStride == 0) {
+                    samples += Sample(
+                        t, p, tSteam, tm, tIn, ts, enthalpy, rho, cp, mu, kCond, pr,
+                        mDot, mSpray, flow.tubeVelocityMs, ht.reynolds, ht.nusselt,
+                        ht.hiWm2K, config.hoWm2K, u.uWm2K, qPlaten, qAbsorbed, ht.validityWarnings,
+                    )
                 }
             } catch (e: SteamPropertyException) {
-                return Result(times, outlet, metalAvg, mixedT, hiArr, uArr, reArr, prArr, nuArr,
-                    qPlat, qAbs, sprayArr, flowArr, pressArr, segSteam, segMetal,
-                    error = "IF97 state error at t=${"%.1f".format(t)}s: ${e.message}")
+                return resultWithError(
+                    times, outlet, metalArr, mixedT, inletT, pressArr, hiArr, uArr, reArr, prArr,
+                    nuArr, velArr, rhoArr, cpArr, muArr, kArr, hArr, qPlat, qAbs, sprayArr, flowArr,
+                    samples, "IF97 state error at t=${"%.1f".format(t)}s: ${e.message}",
+                )
+            }
+
+            // ---- RK4 step ----
+            val h = config.dtSeconds
+            val k1 = derivatives(state, t, mDot, tIn, qPlaten, p)
+            val k2 = derivatives(add(state, mul(k1, h / 2)), t + h / 2, mDot, tIn, qPlaten, p)
+            val k3 = derivatives(add(state, mul(k2, h / 2)), t + h / 2, mDot, tIn, qPlaten, p)
+            val k4 = derivatives(add(state, mul(k3, h)), t + h, mDot, tIn, qPlaten, p)
+
+            for (i in state.indices) {
+                state[i] += h / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
+            }
+            if (state[0].isNaN() || state[1].isNaN() || state[0] < 273.0 || state[0] > 1500.0 || state[1] < 273.0 || state[1] > 1500.0) {
+                return resultWithError(
+                    times, outlet, metalArr, mixedT, inletT, pressArr, hiArr, uArr, reArr, prArr,
+                    nuArr, velArr, rhoArr, cpArr, muArr, kArr, hArr, qPlat, qAbs, sprayArr, flowArr,
+                    samples, "Solver divergence at t=${"%.1f".format(t + h)}s: non-physical temperature " +
+                        "T_metal=${"%.1f".format(state[0] - 273.15)} °C, T_steam=${"%.1f".format(state[1] - 273.15)} °C",
+                )
             }
         }
 
-        return Result(times, outlet, metalAvg, mixedT, hiArr, uArr, reArr, prArr, nuArr,
-            qPlat, qAbs, sprayArr, flowArr, pressArr, segSteam, segMetal)
+        return Result(
+            times, outlet, metalArr, mixedT, inletT, pressArr, hiArr, uArr, reArr, prArr, nuArr,
+            velArr, rhoArr, cpArr, muArr, kArr, hArr, qPlat, qAbs, sprayArr, flowArr, samples,
+        )
     }
 
-    private fun initialSteamFlow(events: List<ScenarioEvent>): Double {
-        val e = events.filter { it.kind == ScenarioEvent.Kind.STEAM_FLOW_KGS }.minByOrNull { it.timeSeconds }
-        return e?.value ?: (100.0 / 3.6)
-    }
+    private fun resultWithError(
+        times: DoubleArray, outlet: DoubleArray, metalArr: DoubleArray, mixedT: DoubleArray,
+        inletT: DoubleArray, pressArr: DoubleArray, hiArr: DoubleArray, uArr: DoubleArray,
+        reArr: DoubleArray, prArr: DoubleArray, nuArr: DoubleArray, velArr: DoubleArray,
+        rhoArr: DoubleArray, cpArr: DoubleArray, muArr: DoubleArray, kArr: DoubleArray,
+        hArr: DoubleArray, qPlat: DoubleArray, qAbs: DoubleArray, sprayArr: DoubleArray,
+        flowArr: DoubleArray, samples: List<Sample>, error: String,
+    ): Result = Result(
+        times, outlet, metalArr, mixedT, inletT, pressArr, hiArr, uArr, reArr, prArr, nuArr,
+        velArr, rhoArr, cpArr, muArr, kArr, hArr, qPlat, qAbs, sprayArr, flowArr, samples, error,
+    )
 
-    /** d(state)/dt with inputs evaluated at time t. */
+    /** d(state)/dt with inputs evaluated at time t. State = [T_metal, T_steam]. */
     private fun derivatives(
         state: DoubleArray,
         t: Double,
         mDot: Double,
-        mSpray: Double,
-        mix: SprayModel.MixingResult?,
-        p: Double,
         tIn: Double,
         qPlaten: Double,
+        p: Double,
     ): DoubleArray {
-        val d = DoubleArray(state.size)
-        for (i in 0 until 5) {
-            val tm = state[2 * i]
-            val ts = state[2 * i + 1]
-            val sec = Unit4Plant.SECTIONS[i]
+        val tm = state[0]
+        val ts = state[1]
 
-            val rho = props.densityPT(p, ts)
-            val mu = props.viscosityPT(p, ts)
-            val cp = props.cpPT(p, ts)
-            val kCond = props.conductivityPT(p, ts)
-            val flow = FlowModel.compute(mDot, config.activePanels, rho, mu)
-            val ht = HeatTransfer.dittusBoelter(flow.tubeVelocityMs, tubeIDM, rho, mu, cp, kCond, config.heating)
+        val rho = props.densityPT(p, ts)
+        val mu = props.viscosityPT(p, ts)
+        val cp = props.cpPT(p, ts)
+        val kCond = props.conductivityPT(p, ts)
+        val flow = FlowModel.compute(mDot, config.activePanels, rho, mu)
+        val ht = HeatTransfer.dittusBoelter(flow.tubeVelocityMs, tubeIDM, rho, mu, cp, kCond, config.heating)
 
-            val steamMass = rho * segmentSteamVolumeM3[i]
-            val metalMass = segmentMetalMassKg[i]
-            val metalCp = sec.cpJkgK
+        val steamMass = rho * steamVolumeM3
+        val qToSteam = ht.hiWm2K * innerAreaM2 * (tm - ts)
+        val qLoss = config.lossCoeffWm2K * outerAreaM2 * (tm - config.ambientK)
 
-            val qFurnace = qPlaten * config.heatFractions[i]
-            val qToSteam = ht.hiWm2K * segmentInnerAreaM2[i] * (tm - ts)
-            val qLoss = config.lossCoeffWm2K * segmentOuterAreaM2[i] * (tm - config.ambientK)
+        val d = DoubleArray(2)
+        d[0] = (qPlaten - qToSteam - qLoss) / (metalMassKg * config.metalCpJkgK)
 
-            // Inlet temperature: segment 0 gets the post-spray mixed temp; others chain
-            val segInlet = if (i == 0) tIn else state[2 * (i - 1) + 1]
-
-            d[2 * i] = (qFurnace - qToSteam - qLoss) / (metalMass * metalCp)
-
-            // Steam energy balance, relaxed to explicit stability.
-            // The casing segments hold very little steam (steam time constant ~0.1 s),
-            // which would make explicit RK4 unstable at dt ~ 1 s. Using
-            //   tau = max(C_steam / (m_dot*cp + h_i*A_i), dt)
-            // the balance converges to the exact steady state as fast as the timestep
-            // allows, preserving the energy balance (same fixed point) while remaining
-            // stable for any segment size.
-            val steamConductance = mDot * cp + ht.hiWm2K * segmentInnerAreaM2[i]
-            val steamTau = steamMass * cp / steamConductance
-            val tauRelax = Math.max(steamTau, config.dtSeconds)
-            val tsSteady = (mDot * cp * segInlet + ht.hiWm2K * segmentInnerAreaM2[i] * tm) / steamConductance
-            d[2 * i + 1] = (tsSteady - ts) / tauRelax
-        }
+        // Steam energy balance, relaxed to explicit stability (same fixed point):
+        //   tau = max(C_steam / (m_dot*cp + h_i*A_i), dt)
+        val steamConductance = mDot * cp + ht.hiWm2K * innerAreaM2
+        val steamTau = steamMass * cp / steamConductance
+        val tauRelax = Math.max(steamTau, config.dtSeconds)
+        val tsSteady = (mDot * cp * tIn + ht.hiWm2K * innerAreaM2 * tm) / steamConductance
+        d[1] = (tsSteady - ts) / tauRelax
         return d
     }
 
@@ -309,9 +371,8 @@ class PlatenSimulator(
 }
 
 /**
- * Step-response metrics (τ, θ) per spec §3.3 reference targets.
- * θ = time from the step until outlet T deviates more than [thetaThreshold] of the total change;
- * τ = time to reach 63.2% of the total change, measured from the step time.
+ * Step-response metrics (τ, θ). θ = time from the step until outlet T deviates more
+ * than [threshold] of the total change; τ = time to reach 63.2% of the total change.
  */
 object StepMetrics {
     fun compute(times: DoubleArray, outletK: DoubleArray, stepTime: Double): Pair<Double, Double> {

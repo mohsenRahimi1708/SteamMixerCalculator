@@ -1,10 +1,18 @@
 #!/usr/bin/env python
-"""Convert USER_GUIDE.md to print-styled HTML for PDF generation."""
+"""Convert USER_GUIDE.md to print-styled HTML for PDF generation.
+
+Usage: python docs/md2html.py [--rtl]
+
+--rtl renders the Persian guide (docs/USER_GUIDE_FA.md -> docs/USER_GUIDE_FA.html)
+with right-to-left layout and a Persian-friendly font stack.
+"""
 import html
 import re
+import sys
 
-SRC = "docs/USER_GUIDE.md"
-OUT = "docs/USER_GUIDE.html"
+RTL = "--rtl" in sys.argv
+SRC = "docs/USER_GUIDE_FA.md" if RTL else "docs/USER_GUIDE.md"
+OUT = "docs/USER_GUIDE_FA.html" if RTL else "docs/USER_GUIDE.html"
 
 with open(SRC, encoding="utf-8") as f:
     lines = f.read().splitlines()
@@ -109,7 +117,30 @@ while i < len(lines):
 
 close_list()
 
-CSS = """
+if RTL:
+    CSS = """
+@page { size: A4; margin: 18mm 16mm; }
+body { font-family: 'Vazirmatn', 'Segoe UI', 'Tahoma', 'Arial', sans-serif; font-size: 10.5pt;
+       color: #1a1a2e; line-height: 1.9; direction: rtl; text-align: right; }
+h1 { font-size: 18pt; color: #0b3d66; border-bottom: 3px solid #0b3d66; padding-bottom: 6px; margin-top: 24px; page-break-after: avoid; }
+h2 { font-size: 14pt; color: #10558a; border-bottom: 1px solid #c8d8e8; padding-bottom: 3px; margin-top: 20px; page-break-after: avoid; }
+h3 { font-size: 12pt; color: #17629c; margin-top: 14px; page-break-after: avoid; }
+p, li { orphans: 3; widows: 3; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; page-break-inside: avoid; font-size: 9.5pt; }
+th { background: #0b3d66; color: white; text-align: right; padding: 5px 8px; }
+td { border: 1px solid #ccd8e4; padding: 4px 8px; vertical-align: top; }
+tr:nth-child(even) td { background: #f2f6fa; }
+pre { background: #f4f4f8; border: 1px solid #d8d8e4; border-right: 4px solid #0b3d66; border-left: none;
+      padding: 8px 10px; font-family: Consolas, monospace; font-size: 9pt; direction: ltr; text-align: left;
+      overflow-x: hidden; page-break-inside: avoid; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #eef1f6; padding: 1px 3px; border-radius: 3px; direction: ltr; unicode-bidi: embed; }
+pre code { background: none; padding: 0; }
+hr { border: none; border-top: 1px solid #c8d8e8; margin: 16px 0; }
+strong { color: #0b3d66; }
+ul, ol { padding-right: 22px; padding-left: 0; }
+"""
+else:
+    CSS = """
 @page { size: A4; margin: 18mm 16mm; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; color: #1a1a2e; line-height: 1.5; }
 h1 { font-size: 20pt; color: #0b3d66; border-bottom: 3px solid #0b3d66; padding-bottom: 6px; margin-top: 24px; page-break-after: avoid; }
@@ -129,7 +160,8 @@ a { color: #10558a; text-decoration: none; }
 strong { color: #0b3d66; }
 """
 
-doc = "<!DOCTYPE html><html><head><meta charset='utf-8'><style>%s</style></head><body>\n%s\n</body></html>" % (CSS, "\n".join(out))
+doc = "<!DOCTYPE html><html lang=\"%s\" dir=\"%s\"><head><meta charset='utf-8'><style>%s</style></head><body>\n%s\n</body></html>" % (
+    "fa" if RTL else "en", "rtl" if RTL else "ltr", CSS, "\n".join(out))
 with open(OUT, "w", encoding="utf-8") as f:
     f.write(doc)
-print("wrote", OUT, "with", len(out), "blocks")
+print("wrote", OUT, "with", len(out), "blocks (rtl=%s)" % RTL)

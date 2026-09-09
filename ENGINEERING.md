@@ -33,14 +33,14 @@ T(16.7 MPa, 3347 kJ/kg) = 520.0 °C.
 ## 2. Flow (spec §5)
 
 ```
-A_flow = π·D_i²/4            D_i = 29 mm, 43 panels × 4 tubes
+A_flow = π·D_i²/4            D_i = 41 mm, 43 panels × 4 tubes
 ṁ_panel = ṁ_total / n_panels
 ṁ_tube  = ṁ_panel / 4
 v = ṁ_tube / (ρ·A_flow)
 ```
 
-The equal-split assumption is explicit (§3.2). At full load (277.78 kg/s, 167 bar/520 °C,
-ρ ≈ 52.1 kg/m³) this gives v ≈ 47 m/s and Re ≈ 5·10⁵ — physically correct for
+The equal-split assumption is explicit. At full load (277.78 kg/s, 167 bar/520 °C,
+ρ ≈ 52.1 kg/m³) the 41 mm ID gives v ≈ 24 m/s and Re ≈ 1.5·10⁶ — physically correct for
 superheated steam.
 
 ## 3. Heat transfer (spec §6–§7)
@@ -83,20 +83,24 @@ Q_spray = ṁ_sp · (h_s − h_mix)
 ```
 
 **Plant rule (enforced, typed error):** spray water must be subcooled
-(T < T_sat at mixing pressure) and below **250 °C**. Spray temperature is a scenario
-input (`SPRAY_TEMP_K` events) with default 230 °C.
+(T < T_sat at mixing pressure) and within **100–180 °C**. Spray temperature is a scenario
+input (`SPRAY_TEMP_K` events) with default 150 °C.
 
-## 6. Segmented transient model (spec §11–§13)
+## 6. Uniform transient model (spec §11–§13, refactored)
 
-Five sections in flow order with per-segment direct energy balance:
+The platen coil is one uniform tube (single material 12Cr2MoWVTiB, OD 57 / ID 41 mm,
+50 m × 172 tubes) with two lumped state variables — the metal node and the steam node:
 
 ```
-C_m · dT_m/dt = Q_furnace,seg − h_i·A_i·(T_m − T_s) − Q_loss
+C_m · dT_m/dt = Q_platen − h_i·A_i·(T_m − T_s) − Q_loss
 C_s · dT_s/dt = ṁ·cp·(T_in − T_s) + h_i·A_i·(T_m − T_s)
 ```
 
-Steam state propagates segment to segment. The steam balance is integrated with an
-exponential-relaxation form
+C_m = wall cross-section × length × 172 tubes × 7850 kg/m³, times the metal cp
+(520 J/kg·K); C_s = ρ(P,T_s)·steam volume. The initial metal temperature is a user
+input (default 450 °C).
+
+The steam balance is integrated with an exponential-relaxation form
 
 ```
 τ = max(C_s/(ṁ·cp + h_i·A_i), Δt)
@@ -104,13 +108,13 @@ dT_s/dt = (T_steady − T_s)/τ,   T_steady = (ṁ·cp·T_in + h_i·A_i·T_m)/(�
 ```
 
 which preserves the exact steady-state fixed point (same energy balance) while keeping
-explicit RK4 stable for the tiny casing-segment steam capacities (τ_steam ~ 0.1 s).
-Metal balances are integrated in raw form by RK4 (metal τ ~ minutes).
+explicit RK4 stable for any timestep. Metal balances are integrated in raw form by RK4
+(metal τ ~ minutes).
 
 ## 7. Validation & calibration (spec §16–§17)
 
 Three model levels run side by side: constant-U single block, dynamic-h_i single block,
-full 5-segment transient. The 800 W/m²K (plant YAML, low load) vs ~170 W/m²K
+uniform-lumped transient. The 800 W/m²K (plant YAML, low load) vs ~170 W/m²K
 (Dittus–Boelter, full load) discrepancy is displayed, not hidden.
 
 Calibration fits F_platen and h_o by grid search minimizing RMSE against imported

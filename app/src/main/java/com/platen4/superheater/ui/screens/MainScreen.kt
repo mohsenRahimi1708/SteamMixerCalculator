@@ -46,10 +46,12 @@ fun MainScreen() {
 fun AboutScreen(modifier: Modifier = Modifier) {
     Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Platen Superheater Transient Simulation — Unit №4", style = MaterialTheme.typography.titleLarge)
-        Text("325 MW natural-circulation drum boiler. 43 panels × 4 tubes × 8 passes.")
+        Text("325 MW natural-circulation drum boiler. 43 panels × 4 tubes (172), uniform tube OD 57 / ID 41 mm.")
         Text("Property engine: IAPWS-IF97 (vendored com.hummeling.if97 v2.1.0, LGPL).")
-        Text("Model: 5-segment distributed energy balance, RK4 solver, dynamic Re→Pr→Nu→h_i→U chain.")
-        Text("Spray rule: spray water is always subcooled and below 250 °C (enforced in the engine).")
+        Text("Model: uniform lumped energy balance (metal + steam nodes), RK4 solver, dynamic Re→Pr→Nu→h_i→U chain.")
+        Text("Spray rule: spray water is always subcooled, 100–180 °C (enforced in the engine).")
+        Text("Scenarios: enable any single scenario or any combination; disabled events never fire.")
+        Text("Metal temperature is a user input (default 450 °C).", style = MaterialTheme.typography.bodySmall)
         Text("Thermodynamics library: IF97 by Hummeling Engineering BV under LGPL — https://www.if97.software")
     }
 }

@@ -40,7 +40,7 @@ fun ValidationScreen(modifier: Modifier = Modifier) {
             val f = { k: Double -> "%.1f".format(k - 273.15) }
             comparison = "constant-U (800):   end ${f(a.outletTempK.last())} °C\n" +
                 "dynamic h_i:        end ${f(b.outletTempK.last())} °C\n" +
-                "segmented (RK4):    end ${f(c.outletTempK.last())} °C\n" +
+                "uniform RK4:        end ${f(c.outletTempK.last())} °C\n" +
                 "U discrepancy: plant YAML 800 W/m²K (low load) vs Dittus-Boelter ~170 (full load) — " +
                 "unresolved; both paths are provided, never blended."
         }) { Text("Run comparison") }

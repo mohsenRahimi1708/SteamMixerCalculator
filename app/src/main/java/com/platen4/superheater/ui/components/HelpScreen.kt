@@ -55,7 +55,7 @@ object HelpContent {
                 HelpBlock.Code(
                     "P, T -> IF97 properties (rho, mu, cp, k)\n" +
                         "     -> velocity -> Re -> Pr -> Nu -> h_i -> U\n" +
-                        "     -> Q (per segment)\n" +
+                        "     -> Q (uniform coil)\n" +
                         "     -> metal energy balance -> steam energy balance\n" +
                         "     -> steam outlet T"
                 ),
@@ -71,16 +71,17 @@ object HelpContent {
                         "Burners: 24 x 40 MW, 3 elevations",
                         "Full-load steam flow: 1000-1040 t/h",
                         "Sliding pressure 10-167 bar, steam temperature ~200-540 C",
-                        "Platen: 43 panels x 4 tubes (172), 8 passes of 6 m",
-                        "Tube OD / wall / ID: 45 / 8 / 29 mm",
-                        "Inner area ~783 m2, outer area ~1216 m2",
+                        "Platen: 43 panels x 4 tubes (172), 8 passes of 6 m, ~50 m total",
+                        "Tube OD / wall / ID: 57 / 8 / 41 mm",
+                        "Uniform platen material: 12Cr2MoWVTiB (7850 kg/m3, cp 520 J/kgK, k 32 W/mK)",
                         "Header feed: dual mid-point (panels 1-21 / 22-43)",
                     )
                 ),
                 HelpBlock.Paragraph(
-                    "Sections in flow order: inlet casing (0.5 m, 12Cr1MoV) -> lower radiant (15 m, SA-213 T91) -> " +
-                        "inner horizontal (20 m, 12Cr2MoWVTiB) -> upper horizontal (12 m, 12Cr2MoWVTiB) -> " +
-                        "outlet casing (2.5 m, 12Cr1MoV)."
+                    "Refactored model: the platen coil is treated as one UNIFORM tube - a single " +
+                        "material, one lumped metal node and one lumped steam node, with uniform heat " +
+                        "flux. Segmentation was removed for simplicity; the energy balance and the " +
+                        "dynamic chain are unchanged."
                 ),
             ),
         ),
@@ -90,18 +91,20 @@ object HelpContent {
                 HelpBlock.Paragraph("Initial state fields:"),
                 HelpBlock.Bullets(
                     listOf(
-                        "Steam flow t/h - total platen steam flow at t = 0 (default 100)",
+                        "Steam flow t/h - total platen steam flow at t = 0 (default 300)",
                         "Pressure bar - absolute pressure at the platen inlet (default 100)",
                         "Steam T C - inlet steam temperature (default 400)",
-                        "Spray T C (<250) - spray-water temperature (default 230)",
+                        "Spray T C 100-180 - spray-water temperature, inside the enforced window (default 150)",
+                        "Metal T C - initial platen metal temperature, a USER INPUT (default 450)",
                         "Burners on - burners firing at t = 0 (default 2)",
                         "Duration min - simulation length (default 15)",
                     )
                 ),
                 HelpBlock.Paragraph(
-                    "Scenario event at t = 300 s: enter new values for flow, spray and burners; " +
-                        "leave a field empty to leave that quantity unchanged. Tap RUN SIMULATION - " +
-                        "results, charts and calculation details appear below."
+                    "Scenario cards: each scenario (steam flow, spray, burners, pressure, steam T) has its " +
+                        "own switch, time and target value. Toggle scenarios on/off freely - disabled " +
+                        "scenarios never fire; all enabled ones apply at their own times. This lets you " +
+                        "simulate a SINGLE scenario or any MIX of scenarios."
                 ),
             ),
         ),
@@ -109,15 +112,15 @@ object HelpContent {
             "4. Spray water rules (important)",
             listOf(
                 HelpBlock.Paragraph(
-                    "The engine enforces the plant rule: spray water is always subcooled and below 250 C " +
-                        "- in any situation."
+                    "The engine enforces the plant rule: spray water is ALWAYS subcooled and within " +
+                        "100-180 C - in any situation."
                 ),
                 HelpBlock.Bullets(
                     listOf(
-                        "Temperature limit: spray temperature must be below 250 C",
-                        "Subcooling: spray temperature must be below Tsat at the mixing pressure " +
-                            "(at 167 bar Tsat is ~350 C so the 250 C limit binds; at 20 bar Tsat is ~212 C " +
-                            "so subcooling binds first)",
+                        "Window: spray temperature must be between 100 C and 180 C",
+                        "Subcooling: spray temperature must also be below Tsat at the mixing pressure " +
+                            "(at 20 bar Tsat is ~212 C so the window binds; below ~13 bar Tsat drops " +
+                            "inside the window and subcooling binds first)",
                     )
                 ),
                 HelpBlock.Paragraph(
@@ -134,14 +137,21 @@ object HelpContent {
         HelpSection(
             "5. Reading the results and charts",
             listOf(
+                HelpBlock.Paragraph(
+                    "After a run every thermodynamic parameter is available: tap the parameter chips " +
+                        "(Steam outlet T, Metal T, Mixed T, Pressure, flows, heat inputs, velocity, Re, " +
+                        "Pr, Nu, h_i, U, density, cp, viscosity, conductivity, enthalpy) to plot any " +
+                        "combination versus time."
+                ),
                 HelpBlock.Bullets(
                     listOf(
-                        "Outlet T (start -> end): steam temperature after the last segment",
-                        "Metal T avg: average metal temperature across the 5 segments",
+                        "Outlet T (start -> end): outlet steam temperature of the uniform coil",
+                        "Metal T: the lumped metal temperature (starts at your Metal T input)",
                         "Mixed T: post-spray mixed temperature (equals steam T if no spray)",
                         "h_i: internal convection coefficient, W/m2K",
                         "U: overall heat-transfer coefficient, W/m2K",
-                        "Re: Reynolds number in a tube",
+                        "Re / Pr / Nu: dimensionless chain, recomputed every step",
+                        "rho, cp, mu, k, h: IF97 properties at the outlet state",
                         "Q absorbed: heat picked up by the steam, MW",
                     )
                 ),
@@ -167,7 +177,7 @@ object HelpContent {
             listOf(
                 HelpBlock.Paragraph(
                     "Three model levels run side by side on the same scenario: constant-U (800 W/m2K, " +
-                        "plant YAML), dynamic h_i (single block), and the full 5-segment RK4 model."
+                        "plant YAML), dynamic h_i (single block), and the uniform-lumped RK4 model."
                 ),
                 HelpBlock.Paragraph(
                     "The 800 vs ~170 W/m2K discrepancy (plant YAML low load vs Dittus-Boelter full load) is " +
@@ -193,22 +203,23 @@ object HelpContent {
             "9. Physics - equations used",
             listOf(
                 HelpBlock.Code(
-                    "A_flow = pi*Di^2/4          Di = 29 mm, 43 panels x 4 tubes\n" +
+                    "A_flow = pi*Di^2/4          Di = 41 mm, 43 panels x 4 tubes\n" +
                         "m_tube = m_total/172\n" +
                         "v      = m_tube/(rho*A_flow)\n" +
                         "Re     = rho*v*Di/mu\n" +
                         "Pr     = cp*mu/k\n" +
                         "Nu     = 0.023*Re^0.8*Pr^0.4\n" +
                         "h_i    = Nu*k/Di\n" +
-                        "1/(U*Ao) = 1/(hi*Ai) + ln(Do/Di)/(2*pi*k*L) + R_foul + 1/(ho*Ao)\n" +
+                        "1/(U*Ao) = 1/(hi*Ai) + ln(Do/Di)/(2*pi*k_wall*L) + R_foul + 1/(ho*Ao)\n" +
                         "Q_platen = n_burners * 40 MW * F_platen\n" +
-                        "C_m*dTm/dt = Q_seg - hi*Ai*(Tm-Ts) - Q_loss\n" +
-                        "C_s*dTs/dt = m*cp*(Tin-Ts) + hi*Ai*(Tm-Ts)"
+                        "C_m*dTm/dt = Q_platen - hi*Ai*(Tm-Ts) - Q_loss   (uniform metal node)\n" +
+                        "C_s*dTs/dt = m*cp*(Tin-Ts) + hi*Ai*(Tm-Ts)       (uniform steam node)"
                 ),
                 HelpBlock.Paragraph(
                     "Properties from IAPWS-IF97 (Regions 1/2/4), verified in tests against the official " +
                         "IAPWS tables. Dittus-Boelter validity (Pr 0.7-160, Re > 10000) is checked and warned, " +
-                        "never silently applied. Solver: RK4, dt = 1 s, verified by timestep-halving convergence."
+                        "never silently applied. Solver: RK4, dt = 1 s, verified by timestep-halving convergence. " +
+                        "Metal temperature is a user input (default 450 C) - the metal node starts there."
                 ),
             ),
         ),
@@ -221,7 +232,7 @@ object HelpContent {
                 ),
                 HelpBlock.Bullets(
                     listOf(
-                        "Spray temperature X C exceeds the 250 C plant limit -> lower spray T",
+                        "Spray temperature X C outside the 100-180 C window -> set spray T inside the window",
                         "Spray water must be subcooled: T=.. >= Tsat=.. at .. bar -> lower spray T below Tsat",
                         "IF97 state out of range -> bring P/T into the physical range",
                         "Steam flow must be positive -> enter a positive flow",
@@ -237,15 +248,17 @@ object HelpContent {
             listOf(
                 HelpBlock.Bullets(
                     listOf(
-                        "Outlet keeps rising the whole run? The metal starts at the initial steam " +
-                            "temperature; if burner heat exceeds what the flow carries away the system heats " +
-                            "toward a higher equilibrium - extend the duration or compare spray-on/off runs.",
-                        "Tube velocity ~47 m/s at full load - too high? No: superheated steam at 167 bar/520 C " +
-                            "has rho ~ 52 kg/m3, so high velocity is physically correct.",
+                        "Outlet keeps rising the whole run? The metal starts at your Metal T input; if burner " +
+                            "heat exceeds what the flow carries away the system heats toward a higher " +
+                            "equilibrium - extend the duration or compare spray-on/off runs.",
+                        "Can I change the metal temperature? Yes - Metal T C is a user input (default 450 C) " +
+                            "and enters the calculation as the initial metal node temperature.",
                         "Why does metal respond before the outlet? The furnace heats the metal directly; " +
                             "steam receives heat only through the metal - that cascade delay is the physics.",
-                        "Can I set spray to 300 C to test the limit? The engine refuses - the plant rule " +
-                            "is working as intended.",
+                        "Can I enable only one scenario? Yes - every scenario card has its own switch; " +
+                            "with one switch on you get a single-scenario run, with several on a mixed run.",
+                        "Can I set spray to 200 C to test the limit? The engine refuses - the 100-180 C " +
+                            "subcooled rule is working as intended.",
                         "Pressure absolute or gauge? Absolute (bar a) - IF97 works in absolute pressure.",
                     )
                 ),

@@ -56,7 +56,7 @@ The causal chain is physical, top to bottom:
 ```
 P, T → IF97 properties (ρ, μ, cp, k)
      → velocity → Re → Pr → Nu → h_i → U
-     → Q (per segment)
+     → Q (uniform coil)
      → metal energy balance → steam energy balance
      → steam outlet T (with spray enthalpy + burner heat entering dynamically)
 ```
@@ -76,21 +76,18 @@ P, T → IF97 properties (ρ, μ, cp, k)
 | Parallel panels | 43 |
 | Tubes per panel | 4 (172 total) |
 | Passes per panel | 8, pass length 6 m |
-| Tube OD / wall / ID | 45 / 8 / 29 mm |
-| Inner (steam-side) area | ~783 m² |
-| Outer (furnace-side) area | ~1216 m² |
+| Tube OD / wall / ID | 57 / 8 / 41 mm |
 | Header feed | Dual mid-point (panels 1–21 / 22–43) |
 
-**Sections in flow order** (this is the order steam actually flows, and the order the
-model uses):
+**Uniform platen material** (refactored model — the coil is treated as one uniform
+tube of a single material):
 
-| # | Section | Length | Material |
-|---|---------|--------|----------|
-| 1 | Inlet casing | 0.5 m | 12Cr1MoV |
-| 2 | Lower radiant | 15.0 m | SA-213 T91 |
-| 3 | Inner horizontal | 20.0 m | 12Cr2MoWVTiB |
-| 4 | Upper horizontal | 12.0 m | 12Cr2MoWVTiB |
-| 5 | Outlet casing | 2.5 m | 12Cr1MoV |
+| Material | ρ (kg/m³) | cp (J/kg·K) | k (W/m·K) |
+|---|---|---|---|
+| 12Cr2MoWVTiB | 7850 | 520 | 32 |
+
+**Initial platen metal temperature is a user input** (default **450 °C**) and enters
+the calculation as the starting point of the metal energy balance.
 
 ---
 
@@ -110,26 +107,25 @@ library is compiled into the app.
 
 ## 3. How the simulation works — the big picture
 
-The platen is **not** modeled as one lump. It is divided into the **five physical
-sections** listed above, and each section carries its own state:
+The platen coil is modeled as **one uniform tube** (refactored model — segmentation
+removed for simplicity): a single material (12Cr2MoWVTiB), uniform heat flux, and two
+lumped state variables:
 
-- **Metal temperature** `T_m` — the tube-wall metal lump (dominant inertia)
-- **Steam temperature** `T_s` — the steam inside that section
+- **Metal temperature** `T_m` — the tube-wall metal lump (dominant inertia; starts at
+  the user's Metal T input, default 450 °C)
+- **Steam temperature** `T_s` — the steam in the coil
 
 Each timestep the model:
 
 1. Reads the current inputs (steam flow, spray flow/temperature, burners, pressure,
-   steam temperature) — including any scenario events due at this time.
+   steam temperature) — including any enabled scenario events due at this time.
 2. If spray is active, performs the **mixing calculation** (see §5): enthalpy balance →
    mixed enthalpy → mixed temperature via the IF97 backward equation T(P,h).
-3. For every segment, evaluates properties (ρ, μ, cp, k) from IF97 at the current
-   steam state, computes velocity → Re → Pr → Nu → h_i, then U from the cylindrical
-   resistance chain.
-4. Computes the per-segment heat flows and integrates both energy balances with the
+3. Evaluates properties (ρ, μ, cp, k) from IF97 at the current steam state, computes
+   velocity → Re → Pr → Nu → h_i, then U from the cylindrical resistance chain.
+4. Computes the heat flows and integrates both energy balances with the
    **RK4** method (4th-order Runge–Kutta).
-5. Passes each segment's outlet steam temperature as the next segment's inlet
-   temperature (segment 1 receives the post-spray mixed temperature).
-6. Records everything for the charts.
+5. Records every thermodynamic parameter for the results and charts.
 
 **Why the metal matters:** the tube metal holds ~36 MJ/K — thousands of times more
 thermal capacity than the steam in the tubes. When burners step up, the metal heats
@@ -137,8 +133,9 @@ first and the steam follows; that lag is exactly what the model reproduces.
 
 **Flow distribution assumption (explicit):** total platen steam flow splits equally
 across all 43 panels; within a panel the 4 tubes share equally. So one tube carries
-`ṁ_total / 172`. At full load (277.8 kg/s) and 167 bar / 520 °C (ρ ≈ 52 kg/m³) this
-gives ≈ 47 m/s tube velocity and Re ≈ 5·10⁵ — physically correct for superheated steam.
+`ṁ_total / 172`. At full load (277.8 kg/s) and 167 bar / 520 °C (ρ ≈ 52 kg/m³) the
+41 mm ID gives ≈ 24 m/s tube velocity and Re ≈ 1.5·10⁶ — physically correct for
+superheated steam.
 
 ---
 
@@ -148,32 +145,32 @@ gives ≈ 47 m/s tube velocity and Re ≈ 5·10⁵ — physically correct for su
 
 | Field | Meaning | Default |
 |---|---|---|
-| Steam flow t/h | Total platen steam flow at t = 0 | 100 |
+| Steam flow t/h | Total platen steam flow at t = 0 | 300 |
 | Pressure bar | Steam pressure at the platen inlet (absolute) | 100 |
 | Steam T °C | Steam temperature entering the platen at t = 0 | 400 |
-| Spray T °C (<250) | Spray-water temperature — must be below 250 °C | 230 |
+| Spray T °C (100–180) | Spray-water temperature — inside the enforced window | 150 |
+| Metal T °C | Initial platen metal temperature — a **user input** | 450 |
 | Burners on | Number of burners firing at t = 0 | 2 |
 | Duration min | Simulation length | 15 |
 
-### 4.2 Scenario event fields (step at t = 300 s)
+### 4.2 Scenario cards — enable any combination
 
-One built-in event time (300 s) is provided for quick what-if tests:
+Each scenario (steam flow, spray flow, burners, pressure, steam temperature) is a card
+with its own **switch**, event **time** and target **value**:
 
-| Field | Meaning |
-|---|---|
-| Flow → t/h | New steam flow applied at t = 300 s (blank/0 = no change) |
-| Spray → t/h | New spray flow applied at t = 300 s (0 = spray off) |
-| Burners → | New burner count applied at t = 300 s |
-
-Leave all three empty to simulate the initial state alone (useful for seeing the
-natural heat-up toward equilibrium).
+- Toggle the switch **on** to include that scenario in the run.
+- Leave it **off** and that scenario never fires — the quantity stays at its initial
+  value for the whole simulation.
+- With one switch on you get a **single-scenario** run; with several on you get a
+  **mixed-scenario** run — all enabled scenarios apply at their own times.
 
 ### 4.3 Running
 
 Tap **RUN SIMULATION**. The engine integrates with dt = 1 s. Results appear below:
-summary numbers first, then four charts, then the calculation-details panel.
+summary numbers first, then the parameter-selection chips and charts, then the
+calculation-details panel.
 
-If anything is wrong with the inputs (e.g. spray hotter than 250 °C, non-physical
+If anything is wrong with the inputs (e.g. spray outside 100–180 °C, non-physical
 pressure), a red error card appears with an engineering-readable explanation instead
 of a crash.
 
@@ -183,21 +180,21 @@ of a crash.
 
 The app **enforces the plant rule** for spray water:
 
-> **Spray water is always subcooled and below 250 °C — in any situation.**
+> **Spray water is always subcooled and between 100 and 180 °C — in any situation.**
 
 Concretely, the engine checks, before every mixing calculation:
 
-1. **Temperature limit:** spray temperature must be **< 250 °C**.
-2. **Subcooling:** spray temperature must be **below the saturation temperature Tsat**
-   at the mixing pressure. At 167 bar, Tsat ≈ 350 °C, so the 250 °C limit is the
-   binding one there; at 20 bar, Tsat ≈ 212 °C, so subcooling binds first.
+1. **Window:** spray temperature must be **between 100 °C and 180 °C**.
+2. **Subcooling:** spray temperature must also be **below the saturation temperature
+   Tsat** at the mixing pressure. At 20 bar, Tsat ≈ 212 °C, so the window binds; below
+   ≈ 13 bar, Tsat drops inside the window and subcooling binds first.
 
 If either check fails, the simulation refuses with a typed error explaining exactly
 which condition failed and by how much — for example:
 
 ```
-Spray temperature 262.0 °C exceeds the 250 °C plant limit
-Spray water must be subcooled: T=220.0 °C >= Tsat=212.4 °C at 20.00 bar
+Spray temperature 200.0 °C outside the 100-180 °C plant window
+Spray water must be subcooled: T=120.0 °C >= Tsat=110.8 °C at 1.50 bar
 ```
 
 **Why:** desuperheating sprays must evaporate completely in the steam stream. Water
@@ -215,7 +212,7 @@ Four distinct states are always kept separate:
 1. **Upstream steam** (pre-spray): P, T, h from IF97
 2. **Spray water**: h from IF97 Region 1 at the injection pressure and spray temperature
 3. **Mixed state** (post-spray, platen inlet): enthalpy balance → T(P,h)
-4. **Platen outlet**: computed by the segment chain
+4. **Platen outlet**: computed by the uniform-coil energy balance
 
 ```
 h_mix = (ṁ_steam·h_steam + ṁ_spray·h_spray) / (ṁ_steam + ṁ_spray)
@@ -236,20 +233,20 @@ a coming release):
 |---|---|---|
 | Steam flow | kg/s (UI: t/h) | Step at event time |
 | Spray flow | kg/s (UI: t/h) | Step (or ramp if spray ramp configured) |
-| Spray temperature | K (UI: °C) | Step; must stay < 250 °C |
+| Spray temperature | K (UI: °C) | Step; must stay in 100–180 °C |
 | Burners firing | count | **Ramped** over 60 s (configurable), not stepped |
 | Firing fraction | 0–1 | Step |
 | Steam pressure | Pa (UI: bar) | Step |
 | Steam temperature | K (UI: °C) | Step |
 
-The example scenario from the specification is exactly the default UI event set:
+The example scenario from the specification is exactly the default scenario set:
 
 | t (s) | Event |
 |---|---|
-| 0 | Steam flow = 100 t/h, 2 burners on, spray = 0 |
-| 300 | Steam flow → 150 t/h |
-| 300 | Spray 0 → 5 t/h |
-| 300 | Burners 2 → 3 |
+| 0 | Steam flow = 300 t/h, 2 burners on, spray = 0 |
+| 300 | Steam flow → 450 t/h |
+| 400 | Spray 0 → 5 t/h |
+| 500 | Burners 2 → 3 |
 
 ---
 
@@ -259,23 +256,23 @@ The example scenario from the specification is exactly the default UI event set:
 
 | Row | Meaning |
 |---|---|
-| Outlet T (start → end) | Steam temperature after the last segment, start vs end |
-| Metal T avg (end) | Average metal temperature across the 5 segments |
+| Outlet T (start → end) | Outlet steam temperature of the uniform coil, start vs end |
+| Metal T (start → end) | Lumped metal temperature (starts at your Metal T input) |
 | Mixed T (end) | Post-spray mixed temperature (equals steam T if no spray) |
+| Velocity (end) | Steam velocity in one tube, m/s |
 | h_i (end) | Internal convection coefficient, W/m²K |
 | U (end) | Overall heat-transfer coefficient, W/m²K |
 | Re (end) | Reynolds number in a tube |
-| Q absorbed (end) | Heat picked up by the steam across all segments, MW |
+| Q absorbed (end) | Heat picked up by the steam, MW |
+| ρ / cp (end) | IF97 density and heat capacity at the outlet state |
 
-### Charts
+### Charts — every parameter selectable
 
-Each chart plots the quantity against time; the axis label shows the value range
-covered:
+After a run, **every thermodynamic parameter** is available as a toggle chip:
 
-1. **Outlet temperature** — the headline result. Watch the step response after events.
-2. **Metal temperature** — leads the outlet; shows the thermal-inertia delay.
-3. **h_i vs time** — internal convection responding to flow/state changes.
-4. **U vs time** — overall coefficient; dominated by the weakest resistance.
+Outlet T, Metal T, Mixed T, Steam inlet T, Pressure, Steam flow, Spray flow, Burner
+heat, Heat absorbed, Velocity, Re, Pr, Nu, h_i, U, ρ, cp, μ, k, h — tap any combination
+to plot them versus time.
 
 **How to interpret a step response:** after a burner step the metal temperature begins
 rising immediately, and the outlet follows after a short dead time; after a spray step
@@ -315,7 +312,7 @@ The app ships **three model levels** and runs them side by side on the same scen
 |---|---|---|
 | **Constant-U** | Single block, fixed U (800 W/m²K) | Plant-YAML reference behavior |
 | **Dynamic h_i** | Single block, h_i from the Re→Pr→Nu chain each step | Isolates the effect of dynamic heat transfer |
-| **Segmented (RK4)** | Full 5-segment transient model | The production model |
+| **Uniform (RK4)** | Uniform-lumped transient model (metal + steam nodes) | The production model |
 
 Tap **Run comparison** to see the end-of-run outlet temperature of all three on the
 reference scenario (100→150 t/h and 2→3 burners at t = 300 s).
@@ -383,7 +380,7 @@ Verified in the test suite against the official IAPWS tables, e.g.:
 ### 11.2 Flow
 
 ```
-A_flow   = π·D_i²/4                D_i = 29 mm
+A_flow   = π·D_i²/4                D_i = 41 mm
 ṁ_tube   = ṁ_total / (43·4)
 v        = ṁ_tube / (ρ·A_flow)
 Re       = ρ·v·D_i/μ
@@ -416,16 +413,17 @@ Q_platen = n_burners · 40 MW · firing_fraction · F_platen
 
 F_platen default 0.15. Burner changes ramp over 60 s.
 
-### 11.6 Per-segment energy balances
+### 11.6 Uniform energy balances
 
 ```
-C_metal · dT_m/dt = Q_furnace,seg − h_i·A_i·(T_m − T_s) − Q_loss
+C_metal · dT_m/dt = Q_platen − h_i·A_i·(T_m − T_s) − Q_loss
 C_steam · dT_s/dt = ṁ·cp·(T_in − T_s) + h_i·A_i·(T_m − T_s)
 ```
 
-The steam balance is integrated in exponential-relaxation form with
+One metal node and one steam node for the whole coil (uniform model). The steam
+balance is integrated in exponential-relaxation form with
 `τ = max(C_steam/(ṁ·cp + h_i·A_i), Δt)` — the same steady state, stable at any
-segment size (the short casing segments hold very little steam).
+timestep.
 
 ### 11.7 Solver
 
@@ -450,7 +448,7 @@ mixed.
 
 | Message | Cause | What to do |
 |---|---|---|
-| `Spray temperature X °C exceeds the 250 °C plant limit` | Spray T ≥ 250 °C | Set spray temperature below 250 °C |
+| `Spray temperature X °C outside the 100-180 °C plant window` | Spray T outside 100–180 °C | Set spray temperature inside the window |
 | `Spray water must be subcooled: T=… >= Tsat=… at … bar` | Spray T ≥ Tsat at mixing pressure | Lower spray temperature below Tsat |
 | `IF97 state out of range: …` | Pressure/temperature outside IF97 validity (e.g. > 100 MPa, < 0 °C) | Bring inputs into the physical range |
 | `Steam flow must be positive` | Zero/negative flow entered | Enter a positive flow |
@@ -463,22 +461,31 @@ All errors are typed results — the app never crashes on bad input; it explains
 ## 14. FAQ and troubleshooting
 
 **Q: The outlet temperature keeps rising the whole run — is that wrong?**
-A: Probably not. The initial metal temperature equals the initial steam temperature;
-if the burner heat input exceeds what the flow carries away, the system is heating
-toward a higher equilibrium and 15 minutes is not enough to settle. Extend the
-duration or compare spray-on vs spray-off runs (the Validation comparison does this).
+A: Probably not. The metal starts at your Metal T input (default 450 °C); if the
+burner heat input exceeds what the flow carries away, the system is heating toward a
+higher equilibrium and 15 minutes is not enough to settle. Extend the duration or
+compare spray-on vs spray-off runs.
 
-**Q: Why is tube velocity ~47 m/s at full load? Isn't that high?**
+**Q: Why is tube velocity ~24 m/s at full load?**
 A: Superheated steam at 167 bar/520 °C has density ≈ 52 kg/m³ — a tenth of water.
-High velocity at full load is physically correct; Re ≈ 5·10⁵ is comfortably turbulent.
+With the 41 mm ID this gives ≈ 24 m/s and Re ≈ 1.5·10⁶ — comfortably turbulent and
+physically correct.
 
 **Q: Why does the metal respond before the outlet?**
 A: The furnace heats the metal directly; the steam only receives heat through the
 metal. That cascade delay is the dominant transient behavior of a superheater.
 
-**Q: Can I set spray to 300 °C to test the limit?**
+**Q: Can I set spray to 200 °C to test the limit?**
 A: The engine will refuse — that is the plant rule working as intended. Spray water is
-always subcooled and below 250 °C in this plant.
+always subcooled and within 100–180 °C in this plant.
+
+**Q: Can I change the metal temperature?**
+A: Yes — Metal T °C is a user input (default 450 °C) and enters the calculation as the
+initial temperature of the metal node.
+
+**Q: Can I run just one scenario?**
+A: Yes — every scenario card has its own switch. One switch on = single-scenario run;
+several switches on = mixed-scenario run. Disabled scenarios never fire.
 
 **Q: What pressure should I enter — absolute or gauge?**
 A: Absolute (bar a). IF97 works in absolute pressure.
@@ -496,7 +503,7 @@ under the LGPL (license file included in the source tree).
 git clone https://github.com/mohsenRahimi1708/SteamMixerCalculator.git
 cd SteamMixerCalculator   # checkout unit4-platen-transient
 # the app lives in the platen-superheater/ folder of that branch
-./gradlew :app:testDebugUnitTest   # 17 tests, all green
+./gradlew :app:testDebugUnitTest   # 23 tests, all green
 ./gradlew :app:assembleDebug       # APK at app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -516,5 +523,6 @@ CoolProp) can be swapped in without touching the model.
 
 ---
 
-*Document version 1.0.0 — generated with the application source. For the full
-engineering derivation of every equation, see `ENGINEERING.md` in the repository.*
+*Document version 2.0.0 — reflects the refactored uniform model (OD 57 / ID 41 mm,
+100–180 °C spray window, per-scenario enable/disable, user metal temperature). For the
+full engineering derivation of every equation, see `ENGINEERING.md` in the repository.*

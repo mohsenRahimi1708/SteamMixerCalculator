@@ -5,24 +5,25 @@ of a platen superheater in a 325 MW natural-circulation drum-type boiler (Unit �
 
 ## What it does
 
-- **Dynamic, load-dependent, distributed thermal model** — not a static calculator.
+- **Dynamic, load-dependent thermal model** — not a static calculator.
 - Property engine: **IAPWS-IF97 Regions 1/2/4** (vendored `com.hummeling.if97` v2.1.0, LGPL).
-- 5 physical segments in flow order (inlet casing → lower radiant → inner horizontal →
-  upper horizontal → outlet casing), each with its own metal/steam energy balance.
+- **Uniform platen model** (refactored spec): the coil is one uniform tube — OD 57 /
+  wall 8 / ID 41 mm, single material 12Cr2MoWVTiB — with a lumped metal node and steam node.
+- **User-set initial metal temperature** (default 450 °C) enters the metal energy balance.
 - RK4 solver with timestep-sensitivity verification.
 - Full heat-transfer chain every timestep: properties → velocity → Re → Pr → Nu → h_i → U
   (cylindrical resistance chain: internal convection, wall conduction, fouling, external convection).
 - Spray mixing with the IF97 Region 2 backward equation T(P,h); four distinct states tracked
   (upstream steam, spray water, mixed, platen outlet).
-- **Spray plant rule enforced in the engine:** spray water is always subcooled and below
-  250 °C — violations raise typed engineering-readable errors.
-- Scenario events (steam flow, spray flow/temperature, burners, pressure, temperature) with
-  step or ramped application.
-- Validation screen: constant-U vs dynamic-h_i vs segmented model comparison, the
+- **Spray plant rule enforced in the engine:** spray water is always subcooled and within
+  100–180 °C — violations raise typed engineering-readable errors.
+- **Per-scenario enable/disable:** run a single scenario or any mix; disabled events never fire.
+- **Every thermodynamic parameter accessible in the UI** after a run — ρ, cp, μ, k, Pr, Re,
+  Nu, h_i, U, velocity, enthalpy, heat inputs, all temperatures — each selectable for plotting.
+- Validation screen: constant-U vs dynamic-h_i vs uniform model comparison, the
   800 vs ~170 W/m²K discrepancy surfaced explicitly, historian-data calibration
   (F_platen, h_o) with MAE/RMSE/max/bias/R².
-- "Show calculation" transparency: every displayed quantity (ρ, cp, μ, k, Pr, Re, Nu, h_i, U)
-  traceable at the end state.
+- "Show calculation" transparency: every displayed quantity traceable at the end state.
 
 ## Build
 
@@ -35,7 +36,7 @@ of a platen superheater in a 325 MW natural-circulation drum-type boiler (Unit �
 ## Test
 
 ```bash
-./gradlew :app:testDebugUnitTest   # 17 tests, all green
+./gradlew :app:testDebugUnitTest   # 23 tests, all green
 ```
 
 Tests include official IAPWS-IF97 verification points (Region 1 Table 5, Region 2 Table 15,
