@@ -17,7 +17,10 @@ of a platen superheater in a 325 MW natural-circulation drum-type boiler (Unit �
   (upstream steam, spray water, mixed, platen outlet).
 - **Spray plant rule enforced in the engine:** spray water is always subcooled and within
   100–180 °C — violations raise typed engineering-readable errors.
-- **Per-scenario enable/disable:** run a single scenario or any mix; disabled events never fire.
+- **Scenario editor tab:** arbitrary multi-event timelines — any number of events per quantity
+  (steam flow, spray flow/temperature, burners, firing fraction, pressure, steam temperature),
+  each with its own time, value, enable switch and inline validation; disabled events never fire.
+- **Firing-fraction events** scale the burner heat dynamically (Q = n·rating·fraction·F_platen).
 - **Every thermodynamic parameter accessible in the UI** after a run — ρ, cp, μ, k, Pr, Re,
   Nu, h_i, U, velocity, enthalpy, heat inputs, all temperatures — each selectable for plotting.
 - Validation screen: constant-U vs dynamic-h_i vs uniform model comparison, the
@@ -36,7 +39,7 @@ of a platen superheater in a 325 MW natural-circulation drum-type boiler (Unit �
 ## Test
 
 ```bash
-./gradlew :app:testDebugUnitTest   # 23 tests, all green
+./gradlew :app:testDebugUnitTest   # 29 tests, all green
 ```
 
 Tests include official IAPWS-IF97 verification points (Region 1 Table 5, Region 2 Table 15,

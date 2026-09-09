@@ -5,16 +5,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.platen4.superheater.engine.EventRow
+import com.platen4.superheater.engine.ScenarioTimeline
 import com.platen4.superheater.ui.components.HelpScreen
+import com.platen4.superheater.ui.components.ScenarioEditorScreen
 import com.platen4.superheater.ui.components.SimulationScreen
 import com.platen4.superheater.ui.components.ValidationScreen
 
-/** Root screen with tabs: Simulate, Validation, About. */
+/** Root screen with tabs: Simulate, Scenarios, Validation, Help, About. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Simulate", "Validation", "Help", "About")
+    val tabs = listOf("Simulate", "Scenarios", "Validation", "Help", "About")
+
+    // Shared scenario timeline — hoisted so edits survive tab switches and the
+    // Simulate tab always runs exactly what the Scenarios tab shows.
+    var scenarioRows by remember { mutableStateOf(ScenarioTimeline.defaultRows()) }
 
     Scaffold(
         topBar = {
@@ -33,9 +40,18 @@ fun MainScreen() {
                 }
             }
             when (tab) {
-                0 -> SimulationScreen(Modifier.fillMaxSize())
-                1 -> ValidationScreen(Modifier.fillMaxSize())
-                2 -> HelpScreen(Modifier.fillMaxSize())
+                0 -> SimulationScreen(
+                    scenarioRows = scenarioRows,
+                    onScenarioRowsChange = { scenarioRows = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                1 -> ScenarioEditorScreen(
+                    rows = scenarioRows,
+                    onRowsChange = { scenarioRows = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                2 -> ValidationScreen(Modifier.fillMaxSize())
+                3 -> HelpScreen(Modifier.fillMaxSize())
                 else -> AboutScreen(Modifier.fillMaxSize())
             }
         }
@@ -50,7 +66,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         Text("Property engine: IAPWS-IF97 (vendored com.hummeling.if97 v2.1.0, LGPL).")
         Text("Model: uniform lumped energy balance (metal + steam nodes), RK4 solver, dynamic Re→Pr→Nu→h_i→U chain.")
         Text("Spray rule: spray water is always subcooled, 100–180 °C (enforced in the engine).")
-        Text("Scenarios: enable any single scenario or any combination; disabled events never fire.")
+        Text("Scenarios tab: add any number of events per quantity with own times; enable/disable each event; single or mixed runs.")
         Text("Metal temperature is a user input (default 450 °C).", style = MaterialTheme.typography.bodySmall)
         Text("Thermodynamics library: IF97 by Hummeling Engineering BV under LGPL — https://www.if97.software")
     }

@@ -159,18 +159,34 @@ strong { color: #0b3d66; }
 <tr><td>Burners on</td><td>Number of burners firing at t = 0</td><td>2</td></tr>
 <tr><td>Duration min</td><td>Simulation length</td><td>15</td></tr>
 </tbody></table>
-<h3>4.2 Scenario cards — enable any combination</h3>
-<p>Each scenario (steam flow, spray flow, burners, pressure, steam temperature) is a card</p>
-<p>with its own <strong>switch</strong>, event <strong>time</strong> and target <strong>value</strong>:</p>
+<h3>4.2 Scenarios — the Scenarios tab</h3>
+<p>Scenario events live in their own <strong>Scenarios</strong> tab (Simulate | <strong>Scenarios</strong> |</p>
+<p>Validation | Help | About). There you can build an <strong>arbitrary multi-event timeline</strong>:</p>
 <ul>
-<li>Toggle the switch <strong>on</strong> to include that scenario in the run.</li>
-<li>Leave it <strong>off</strong> and that scenario never fires — the quantity stays at its initial</li>
+<li>Tap <strong>+ Add</strong>, pick a quantity (steam flow, spray flow, spray temperature, burners</li>
 </ul>
-<p>value for the whole simulation.</p>
+<p>firing, firing fraction, steam pressure, steam temperature) and tap <strong>Add</strong>.</p>
 <ul>
-<li>With one switch on you get a <strong>single-scenario</strong> run; with several on you get a</li>
+<li>Each event card has its own <strong>time</strong> (s), target <strong>value</strong> (in display units), an</li>
 </ul>
-<p><strong>mixed-scenario</strong> run — all enabled scenarios apply at their own times.</p>
+<p><strong>Enabled</strong> switch and a <strong>✕</strong> remove button.</p>
+<ul>
+<li><strong>Any number of events per quantity</strong> — e.g. three steam-flow steps at 200 s, 500 s</li>
+</ul>
+<p>and 800 s — each applied at its own time.</p>
+<ul>
+<li>Invalid rows show an inline, engineering-readable error (bad time, zero flow,</li>
+</ul>
+<p>burners &gt; 24, fraction outside 0–1) and are skipped at run time.</p>
+<ul>
+<li>Disabled events never fire; all enabled ones apply in time order. One switch on =</li>
+</ul>
+<p><strong>single-scenario</strong> run; several on = <strong>mixed-scenario</strong> run.</p>
+<p>Back on the <strong>Simulate</strong> tab the scenario section lists every enabled event in time</p>
+<p>order, warns about enabled-but-invalid rows, and offers <strong>Disable all events</strong> for a</p>
+<p>quick baseline run. The state is shared — edits in either tab are the same timeline.</p>
+<p>Events the engine understands: burner-count changes ramp over 60 s (configurable in</p>
+<p>the engine) instead of stepping; all other kinds step at their event time.</p>
 <h3>4.3 Running</h3>
 <p>Tap <strong>RUN SIMULATION</strong>. The engine integrates with dt = 1 s. Results appear below:</p>
 <p>summary numbers first, then the parameter-selection chips and charts, then the</p>
@@ -212,9 +228,9 @@ T_mix = T(P, h_mix)          ← IF97 Region 2 backward equation</code></pre>
 <p>The cooling power attributable to the spray is <code>Q_spray = ṁ_spray·(h_steam − h_mix)</code>.</p>
 <hr/>
 <h2>6. Scenario events</h2>
-<p>Internally every input is a <strong>time series</strong> built from events. The built-in UI exposes</p>
-<p>one event time; the engine supports arbitrary lists (the full scenario editor ships in</p>
-<p>a coming release):</p>
+<p>Internally every input is a <strong>time series</strong> built from events. The <strong>Scenarios</strong> tab</p>
+<p>edits arbitrary event lists — any number of events per quantity, each with its own</p>
+<p>time, value and enable switch:</p>
 <table><thead><tr><th>Event kind</th><th>Units</th><th>Default behavior</th></tr></thead><tbody>
 <tr><td>Steam flow</td><td>kg/s (UI: t/h)</td><td>Step at event time</td></tr>
 <tr><td>Spray flow</td><td>kg/s (UI: t/h)</td><td>Step (or ramp if spray ramp configured)</td></tr>
@@ -224,13 +240,16 @@ T_mix = T(P, h_mix)          ← IF97 Region 2 backward equation</code></pre>
 <tr><td>Steam pressure</td><td>Pa (UI: bar)</td><td>Step</td></tr>
 <tr><td>Steam temperature</td><td>K (UI: °C)</td><td>Step</td></tr>
 </tbody></table>
-<p>The example scenario from the specification is exactly the default scenario set:</p>
+<p>The example scenario from the specification is the default scenario set (each event</p>
+<p>ships disabled — enable the ones you want):</p>
 <table><thead><tr><th>t (s)</th><th>Event</th></tr></thead><tbody>
 <tr><td>0</td><td>Steam flow = 300 t/h, 2 burners on, spray = 0</td></tr>
 <tr><td>300</td><td>Steam flow → 450 t/h</td></tr>
 <tr><td>400</td><td>Spray 0 → 5 t/h</td></tr>
 <tr><td>500</td><td>Burners 2 → 3</td></tr>
 </tbody></table>
+<p>You can add further events to the same timeline — e.g. a firing-fraction drop to 0.8 at</p>
+<p>600 s, or a second spray step at 700 s.</p>
 <hr/>
 <h2>7. Reading the results and charts</h2>
 <h3>Summary numbers (at end of simulation)</h3>
@@ -413,7 +432,7 @@ C_steam · dT_s/dt = ṁ·cp·(T_in − T_s) + h_i·A_i·(T_m − T_s)</code></p
 git clone https://github.com/mohsenRahimi1708/SteamMixerCalculator.git
 cd SteamMixerCalculator   # checkout unit4-platen-transient
 # the app lives in the platen-superheater/ folder of that branch
-./gradlew :app:testDebugUnitTest   # 23 tests, all green
+./gradlew :app:testDebugUnitTest   # 29 tests, all green
 ./gradlew :app:assembleDebug       # APK at app/build/outputs/apk/debug/app-debug.apk</code></pre>
 <p>Architecture summary:</p>
 <pre><code>UI (Compose) → Screens → PlatenSimulator → SteamProperties (IF97)
@@ -425,7 +444,7 @@ cd SteamMixerCalculator   # checkout unit4-platen-transient
 <p>the property engine sits behind an interface so an alternative implementation (e.g.</p>
 <p>CoolProp) can be swapped in without touching the model.</p>
 <hr/>
-<p>*Document version 2.0.0 — reflects the refactored uniform model (OD 57 / ID 41 mm,</p>
-<p>100–180 °C spray window, per-scenario enable/disable, user metal temperature). For the</p>
-<p>full engineering derivation of every equation, see <code>ENGINEERING.md</code> in the repository.*</p>
+<p>*Document version 2.1.0 — reflects the refactored uniform model and the Scenarios tab</p>
+<p>(arbitrary multi-event timelines with per-event enable switches). For the full</p>
+<p>engineering derivation of every equation, see <code>ENGINEERING.md</code> in the repository.*</p>
 </body></html>

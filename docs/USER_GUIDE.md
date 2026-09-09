@@ -153,16 +153,28 @@ superheated steam.
 | Burners on | Number of burners firing at t = 0 | 2 |
 | Duration min | Simulation length | 15 |
 
-### 4.2 Scenario cards — enable any combination
+### 4.2 Scenarios — the Scenarios tab
 
-Each scenario (steam flow, spray flow, burners, pressure, steam temperature) is a card
-with its own **switch**, event **time** and target **value**:
+Scenario events live in their own **Scenarios** tab (Simulate | **Scenarios** |
+Validation | Help | About). There you can build an **arbitrary multi-event timeline**:
 
-- Toggle the switch **on** to include that scenario in the run.
-- Leave it **off** and that scenario never fires — the quantity stays at its initial
-  value for the whole simulation.
-- With one switch on you get a **single-scenario** run; with several on you get a
-  **mixed-scenario** run — all enabled scenarios apply at their own times.
+- Tap **+ Add**, pick a quantity (steam flow, spray flow, spray temperature, burners
+  firing, firing fraction, steam pressure, steam temperature) and tap **Add**.
+- Each event card has its own **time** (s), target **value** (in display units), an
+  **Enabled** switch and a **✕** remove button.
+- **Any number of events per quantity** — e.g. three steam-flow steps at 200 s, 500 s
+  and 800 s — each applied at its own time.
+- Invalid rows show an inline, engineering-readable error (bad time, zero flow,
+  burners > 24, fraction outside 0–1) and are skipped at run time.
+- Disabled events never fire; all enabled ones apply in time order. One switch on =
+  **single-scenario** run; several on = **mixed-scenario** run.
+
+Back on the **Simulate** tab the scenario section lists every enabled event in time
+order, warns about enabled-but-invalid rows, and offers **Disable all events** for a
+quick baseline run. The state is shared — edits in either tab are the same timeline.
+
+Events the engine understands: burner-count changes ramp over 60 s (configurable in
+the engine) instead of stepping; all other kinds step at their event time.
 
 ### 4.3 Running
 
@@ -225,9 +237,9 @@ The cooling power attributable to the spray is `Q_spray = ṁ_spray·(h_steam �
 
 ## 6. Scenario events
 
-Internally every input is a **time series** built from events. The built-in UI exposes
-one event time; the engine supports arbitrary lists (the full scenario editor ships in
-a coming release):
+Internally every input is a **time series** built from events. The **Scenarios** tab
+edits arbitrary event lists — any number of events per quantity, each with its own
+time, value and enable switch:
 
 | Event kind | Units | Default behavior |
 |---|---|---|
@@ -239,7 +251,8 @@ a coming release):
 | Steam pressure | Pa (UI: bar) | Step |
 | Steam temperature | K (UI: °C) | Step |
 
-The example scenario from the specification is exactly the default scenario set:
+The example scenario from the specification is the default scenario set (each event
+ships disabled — enable the ones you want):
 
 | t (s) | Event |
 |---|---|
@@ -247,6 +260,9 @@ The example scenario from the specification is exactly the default scenario set:
 | 300 | Steam flow → 450 t/h |
 | 400 | Spray 0 → 5 t/h |
 | 500 | Burners 2 → 3 |
+
+You can add further events to the same timeline — e.g. a firing-fraction drop to 0.8 at
+600 s, or a second spray step at 700 s.
 
 ---
 
@@ -503,7 +519,7 @@ under the LGPL (license file included in the source tree).
 git clone https://github.com/mohsenRahimi1708/SteamMixerCalculator.git
 cd SteamMixerCalculator   # checkout unit4-platen-transient
 # the app lives in the platen-superheater/ folder of that branch
-./gradlew :app:testDebugUnitTest   # 23 tests, all green
+./gradlew :app:testDebugUnitTest   # 29 tests, all green
 ./gradlew :app:assembleDebug       # APK at app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -523,6 +539,6 @@ CoolProp) can be swapped in without touching the model.
 
 ---
 
-*Document version 2.0.0 — reflects the refactored uniform model (OD 57 / ID 41 mm,
-100–180 °C spray window, per-scenario enable/disable, user metal temperature). For the
-full engineering derivation of every equation, see `ENGINEERING.md` in the repository.*
+*Document version 2.1.0 — reflects the refactored uniform model and the Scenarios tab
+(arbitrary multi-event timelines with per-event enable switches). For the full
+engineering derivation of every equation, see `ENGINEERING.md` in the repository.*

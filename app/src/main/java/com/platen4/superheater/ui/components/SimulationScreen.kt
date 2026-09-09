@@ -5,7 +5,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.platen4.superheater.engine.*
@@ -17,32 +16,31 @@ private data class PlotParam(
     val label: String,
     val unit: String,
     val values: DoubleArray,
-    val format: (Double) -> String = { "%.1f".format(it) },
 )
 
 private fun buildPlotParams(r: PlatenSimulator.Result): List<PlotParam> {
     val c = { k: Double -> k - 273.15 } // K -> °C
     return listOf(
-        PlotParam("outlet", "Steam outlet T", "°C", r.outletTempK) { "%.1f".format(c(it)) },
-        PlotParam("metal", "Metal T", "°C", r.metalTempK) { "%.1f".format(c(it)) },
-        PlotParam("mixed", "Mixed T (post-spray)", "°C", r.mixedTempK) { "%.1f".format(c(it)) },
-        PlotParam("inlet", "Steam inlet T", "°C", r.inletSteamTempK) { "%.1f".format(c(it)) },
-        PlotParam("pressure", "Pressure", "bar", r.pressurePa) { "%.2f".format(it / 1e5) },
-        PlotParam("steamflow", "Steam flow", "t/h", r.steamFlowKgs) { "%.1f".format(it * 3.6) },
-        PlotParam("sprayflow", "Spray flow", "t/h", r.sprayFlowKgs) { "%.2f".format(it * 3.6) },
-        PlotParam("qplaten", "Burner heat to platen", "MW", r.qPlatenW) { "%.2f".format(it / 1e6) },
-        PlotParam("qabs", "Heat absorbed", "MW", r.qAbsorbedW) { "%.2f".format(it / 1e6) },
-        PlotParam("velocity", "Tube velocity", "m/s", r.velocityMs) { "%.1f".format(it) },
-        PlotParam("re", "Reynolds", "-", r.reynolds) { "%.3g".format(it) },
-        PlotParam("pr", "Prandtl", "-", r.prandtl) { "%.3f".format(it) },
-        PlotParam("nu", "Nusselt", "-", r.nusselt) { "%.1f".format(it) },
-        PlotParam("hi", "h_i (internal convection)", "W/m²K", r.hiWm2K) { "%.0f".format(it) },
-        PlotParam("u", "U (overall)", "W/m²K", r.uWm2K) { "%.0f".format(it) },
-        PlotParam("rho", "Density ρ", "kg/m³", r.densityKgM3) { "%.2f".format(it) },
-        PlotParam("cp", "Specific heat cp", "kJ/kg·K", r.cpJkgK) { "%.2f".format(it / 1e3) },
-        PlotParam("mu", "Viscosity μ", "Pa·s", r.viscosityPaS) { "%.3g".format(it) },
-        PlotParam("k", "Conductivity k", "W/m·K", r.conductivityWmK) { "%.4f".format(it) },
-        PlotParam("h", "Enthalpy h", "kJ/kg", r.enthalpyJkg) { "%.1f".format(it / 1e3) },
+        PlotParam("outlet", "Steam outlet T", "°C", r.outletTempK),
+        PlotParam("metal", "Metal T", "°C", r.metalTempK),
+        PlotParam("mixed", "Mixed T (post-spray)", "°C", r.mixedTempK),
+        PlotParam("inlet", "Steam inlet T", "°C", r.inletSteamTempK),
+        PlotParam("pressure", "Pressure", "bar", r.pressurePa),
+        PlotParam("steamflow", "Steam flow", "t/h", r.steamFlowKgs),
+        PlotParam("sprayflow", "Spray flow", "t/h", r.sprayFlowKgs),
+        PlotParam("qplaten", "Burner heat to platen", "MW", r.qPlatenW),
+        PlotParam("qabs", "Heat absorbed", "MW", r.qAbsorbedW),
+        PlotParam("velocity", "Tube velocity", "m/s", r.velocityMs),
+        PlotParam("re", "Reynolds", "-", r.reynolds),
+        PlotParam("pr", "Prandtl", "-", r.prandtl),
+        PlotParam("nu", "Nusselt", "-", r.nusselt),
+        PlotParam("hi", "h_i (internal convection)", "W/m²K", r.hiWm2K),
+        PlotParam("u", "U (overall)", "W/m²K", r.uWm2K),
+        PlotParam("rho", "Density ρ", "kg/m³", r.densityKgM3),
+        PlotParam("cp", "Specific heat cp", "kJ/kg·K", r.cpJkgK),
+        PlotParam("mu", "Viscosity μ", "Pa·s", r.viscosityPaS),
+        PlotParam("k", "Conductivity k", "W/m·K", r.conductivityWmK),
+        PlotParam("h", "Enthalpy h", "kJ/kg", r.enthalpyJkg),
     )
 }
 
@@ -50,12 +48,17 @@ private fun buildPlotParams(r: PlatenSimulator.Result): List<PlotParam> {
  * Simulation screen — refactored spec:
  *  - initial metal temperature input (default 450 °C),
  *  - spray temperature inside the enforced 100-180 °C subcooled window,
- *  - per-scenario enable/disable toggles — run one scenario or any mix,
+ *  - scenario events come from the shared [ScenarioEditorScreen] timeline
+ *    (any number of events per quantity, each enabled/disabled individually),
  *  - every thermodynamic parameter selectable for plotting after the run,
  *  - tappable "show calculation" transparency panel.
  */
 @Composable
-fun SimulationScreen(modifier: Modifier = Modifier) {
+fun SimulationScreen(
+    scenarioRows: List<EventRow>,
+    onScenarioRowsChange: (List<EventRow>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val props = remember { If97SteamProperties() }
 
     // ---- Initial state ----
@@ -67,30 +70,14 @@ fun SimulationScreen(modifier: Modifier = Modifier) {
     var burners by remember { mutableStateOf("2") }
     var durationMin by remember { mutableStateOf("15") }
 
-    // ---- Scenario rows: each can be enabled/disabled independently ----
-    data class ScenarioRow(
-        val kind: ScenarioEvent.Kind,
-        val label: String,
-        val enabled: Boolean,
-        val timeS: String,
-        val value: String,
-    )
-
-    var scenarioRows by remember {
-        mutableStateOf(
-            listOf(
-                ScenarioRow(ScenarioEvent.Kind.STEAM_FLOW_KGS, "Steam flow → t/h", false, "300", "450"),
-                ScenarioRow(ScenarioEvent.Kind.SPRAY_FLOW_KGS, "Spray 0 → t/h", false, "400", "5"),
-                ScenarioRow(ScenarioEvent.Kind.BURNERS_FIRING, "Burners → count", false, "500", "3"),
-                ScenarioRow(ScenarioEvent.Kind.STEAM_PRESSURE_PA, "Pressure → bar", false, "300", "120"),
-                ScenarioRow(ScenarioEvent.Kind.STEAM_TEMP_K, "Steam T → °C", false, "300", "430"),
-            ),
-        )
-    }
-
     var result by remember { mutableStateOf<PlatenSimulator.Result?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedPlots by remember { mutableStateOf(setOf("outlet", "metal")) }
+
+    // Enabled + valid rows, and how many were skipped
+    val parsed = remember(scenarioRows) { ScenarioTimeline.parse(scenarioRows) }
+    val enabledCount = parsed.events.size
+    val skipped = scenarioRows.count { it.enabled && ScenarioTimeline.validate(it) != null }
 
     Column(modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Initial state", style = MaterialTheme.typography.titleMedium)
@@ -110,64 +97,50 @@ fun SimulationScreen(modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("Scenarios — enable any combination (single or mixed)", style = MaterialTheme.typography.titleMedium)
-        Text("Disabled scenarios are ignored; enabled ones all apply at their own times.", style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(8.dp))
-        scenarioRows.forEachIndexed { idx, row ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(row.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = row.enabled, onCheckedChange = { on ->
-                            scenarioRows = scenarioRows.mapIndexed { i, r ->
-                                if (i == idx) r.copy(enabled = on) else r
-                            }
-                            result = null
-                        })
-                    }
-                    if (row.enabled) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NumField("at t (s)", row.timeS, Modifier.weight(1f)) { v ->
-                                scenarioRows = scenarioRows.mapIndexed { i, r -> if (i == idx) r.copy(timeS = v) else r }
-                                result = null
-                            }
-                            NumField(row.label.substringAfter("→ ").trim(), row.value, Modifier.weight(1f)) { v ->
-                                scenarioRows = scenarioRows.mapIndexed { i, r -> if (i == idx) r.copy(value = v) else r }
-                                result = null
-                            }
-                        }
-                    }
-                }
+        Text("Scenarios", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "$enabledCount enabled event(s) will fire" + if (skipped > 0) " ($skipped enabled row(s) skipped — fix them in the Scenarios tab)." else ".",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        parsed.events.sortedBy { it.timeSeconds }.take(6).forEach { e ->
+            val kindLabel = ScenarioTimeline.displayLabel(e.kind)
+            val valueDisp = when (e.kind) {
+                ScenarioEvent.Kind.STEAM_FLOW_KGS, ScenarioEvent.Kind.SPRAY_FLOW_KGS -> "%.1f t/h".format(e.value * 3.6)
+                ScenarioEvent.Kind.SPRAY_TEMP_K, ScenarioEvent.Kind.STEAM_TEMP_K -> "%.0f °C".format(e.value - 273.15)
+                ScenarioEvent.Kind.STEAM_PRESSURE_PA -> "%.0f bar".format(e.value / 1e5)
+                else -> "%.2f".format(e.value)
             }
-            Spacer(Modifier.height(6.dp))
+            Text("• t = ${e.timeSeconds.roundToInt()} s — $kindLabel → $valueDisp", style = MaterialTheme.typography.bodySmall)
+        }
+        if (scenarioRows.any { it.enabled }) {
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(onClick = { onScenarioRowsChange(scenarioRows.map { r -> r.copy(enabled = false) }) }) {
+                Text("Disable all events")
+            }
+        }
+        if (scenarioRows.none { it.enabled }) {
+            Text(
+                "No events enabled — the initial state holds for the whole run. Edit events in the Scenarios tab.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Button(onClick = {
             error = null
             result = null
             runCatching {
-                val events = scenarioRows.filter { it.enabled }.map { row ->
-                    ScenarioEvent(
-                        timeSeconds = row.timeS.toDouble(),
-                        kind = row.kind,
-                        value = when (row.kind) {
-                            ScenarioEvent.Kind.STEAM_FLOW_KGS, ScenarioEvent.Kind.SPRAY_FLOW_KGS -> row.value.toDouble() / 3.6
-                            ScenarioEvent.Kind.STEAM_PRESSURE_PA -> row.value.toDouble() * 1e5
-                            ScenarioEvent.Kind.STEAM_TEMP_K -> row.value.toDouble() + 273.15
-                            else -> row.value.toDouble()
-                        },
-                    )
-                }
                 val cfg = PlatenSimulator.Config(
                     dtSeconds = 1.0,
                     durationSeconds = (durationMin.toDoubleOrNull() ?: 15.0) * 60.0,
                     initialMetalK = (metalTempC.toDoubleOrNull() ?: 450.0) + 273.15,
                 )
                 PlatenSimulator(props, cfg).run(
-                    events,
+                    parsed.events,
                     initialSteamTempK = (steamTempC.toDoubleOrNull() ?: 400.0) + 273.15,
                     initialPressurePa = (pressureBar.toDoubleOrNull() ?: 100.0) * 1e5,
+                    initialSteamFlowKgs = (steamFlowTh.toDoubleOrNull() ?: 300.0) / 3.6,
                 )
             }.onSuccess { result = it }.onFailure { error = it.message }
         }) { Text("RUN SIMULATION") }
@@ -203,9 +176,7 @@ fun SimulationScreen(modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(12.dp))
                 Text("Plotted parameters — select any", style = MaterialTheme.typography.titleMedium)
                 val allParams = remember(r) { buildPlotParams(r) }
-                // Toggle chips in a simple wrap via Rows of 2
-                val chunked = allParams.toList().chunked(2)
-                chunked.forEach { pair ->
+                allParams.toList().chunked(2).forEach { pair ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         pair.forEach { p ->
                             FilterChip(
@@ -258,7 +229,7 @@ private fun CalculationDetails(props: SteamProperties, r: PlatenSimulator.Result
             DetailLine("Nu", "%.1f".format(r.nusselt[n]))
             DetailLine("h_i = Nu·k/D", "${"%.0f".format(r.hiWm2K[n])} W/m²K")
             DetailLine("U (resistance chain)", "${"%.0f".format(r.uWm2K[n])} W/m²K")
-            DetailLine("s = entropy check region", "IF97 region ${props.regionPT(p, t)}")
+            DetailLine("IF97 region at outlet", "${props.regionPT(p, t)}")
         }
     }
 }

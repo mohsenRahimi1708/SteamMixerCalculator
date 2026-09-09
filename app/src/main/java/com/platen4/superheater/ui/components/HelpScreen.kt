@@ -101,10 +101,12 @@ object HelpContent {
                     )
                 ),
                 HelpBlock.Paragraph(
-                    "Scenario cards: each scenario (steam flow, spray, burners, pressure, steam T) has its " +
-                        "own switch, time and target value. Toggle scenarios on/off freely - disabled " +
-                        "scenarios never fire; all enabled ones apply at their own times. This lets you " +
-                        "simulate a SINGLE scenario or any MIX of scenarios."
+                    "Scenarios come from the dedicated Scenarios tab: add ANY NUMBER of events per " +
+                        "quantity (steam flow, spray flow, spray temperature, burners, firing fraction, " +
+                        "pressure, steam temperature), each with its own time, value and enable switch. " +
+                        "Disabled events never fire; all enabled ones apply in time order - so you can " +
+                        "simulate a SINGLE scenario or any MIX. The Simulate tab lists what will fire " +
+                        "and runs the whole timeline."
                 ),
             ),
         ),

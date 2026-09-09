@@ -185,6 +185,7 @@ class PlatenSimulator(
         val sprayFlow = EventInterpolators.of(events, ScenarioEvent.Kind.SPRAY_FLOW_KGS, 0.0, ramp = config.sprayRampSeconds > 0)
         val sprayTemp = EventInterpolators.of(events, ScenarioEvent.Kind.SPRAY_TEMP_K, Unit4Plant.DEFAULT_SPRAY_TEMP_C + 273.15)
         val burners = EventInterpolators.of(events, ScenarioEvent.Kind.BURNERS_FIRING, 2.0, ramp = true)
+        val firingFraction = EventInterpolators.of(events, ScenarioEvent.Kind.FIRING_FRACTION, 1.0)
         val pressure = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_PRESSURE_PA, initialPressurePa)
         val steamTemp = EventInterpolators.of(events, ScenarioEvent.Kind.STEAM_TEMP_K, initialSteamTempK)
 
@@ -239,7 +240,7 @@ class PlatenSimulator(
                 }
             } else null
             val tIn = mix?.mixedTemperatureK ?: tSteam
-            val qPlaten = burner.platenHeatW(burners(t).toInt(), 1.0, t)
+            val qPlaten = burner.platenHeatW(burners(t).toInt(), firingFraction(t).coerceIn(0.0, 1.0), t)
 
             // ---- Record outputs BEFORE stepping (t=0 shows the exact initial condition) ----
             val ts = state[1]
